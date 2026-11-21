@@ -48,11 +48,21 @@ def test_calendar_with_no_dates_returns_none():
 def test_history_save_load_delete(tmp_path):
     db = tmp_path / "t.db"
     a = demo.demo_analysis("Hospital bill", "English")
-    letter_id = history.save(a, "English", db_path=db)
-    loaded, lang = history.load(letter_id, db_path=db)
+    letter_id = history.save(a, "English", owner="alice", db_path=db)
+    loaded, lang = history.load(letter_id, owner="alice", db_path=db)
     assert loaded == a and lang == "English"
-    history.delete(letter_id, db_path=db)
-    assert history.load(letter_id, db_path=db) is None
+    history.delete(letter_id, owner="alice", db_path=db)
+    assert history.load(letter_id, owner="alice", db_path=db) is None
+
+
+def test_visitors_cannot_see_each_others_letters(tmp_path):
+    db = tmp_path / "t.db"
+    a = demo.demo_analysis("Hospital bill", "English")
+    letter_id = history.save(a, "English", owner="alice", db_path=db)
+    assert history.list_recent(owner="bob", db_path=db) == []
+    assert history.load(letter_id, owner="bob", db_path=db) is None
+    history.delete(letter_id, owner="bob", db_path=db)            # bob can't delete it either
+    assert history.load(letter_id, owner="alice", db_path=db) is not None
 
 
 def test_no_api_key_gives_friendly_error(monkeypatch):
@@ -112,3 +122,14 @@ def test_photo_is_rotated_and_shrunk():
     img = Image.open(BytesIO(data))
     assert mime == "image/jpeg" and max(img.size) == 2000
     assert prepare_image(b"%PDF-1.4", "application/pdf") == (b"%PDF-1.4", "application/pdf")
+
+
+def test_demo_question_quotes_are_in_the_letter():
+    for sample in demo.SAMPLES:
+        for lang in demo.demo_languages(sample):
+            a = demo.demo_analysis(sample, lang)
+            for q in demo.suggested_questions(a):
+                ans = demo.demo_answer(a, q)
+                for quote in ans.source_quotes:
+                    assert checks.quote_found(quote, a.original_text), quote
+    assert demo.suggested_questions(demo.demo_analysis("Hospital bill", "English"))

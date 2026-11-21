@@ -51,3 +51,13 @@ class LetterAnalysis(BaseModel):
     needs_human_help: bool = Field(description="True if the reader should talk to a real person (lawyer, caseworker, etc.).")
     help_reason: str = Field(description="Why they should, or should not, get human help.")
     confidence: Literal["high", "medium", "low"] = Field(description="How confident you are in this reading of the letter.")
+
+
+class QuestionAnswer(BaseModel):
+    """The answer to a follow-up question about the letter."""
+    answer: str = Field(description="A short answer in plain words (5th-grade level), in the reader's language.")
+    answered_from_letter: bool = Field(description="True only if the letter itself answers the question.")
+    source_quotes: list[str] = Field(description="Exact words copied from the letter that support the answer. "
+                                                 "Empty if the letter doesn't say.")
+    who_to_ask: str = Field(default="", description="If the letter doesn't fully answer it, who could (from the "
+                                                    "letter's contacts if possible). Empty otherwise.")

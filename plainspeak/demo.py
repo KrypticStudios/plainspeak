@@ -206,3 +206,86 @@ def with_simulated_mistake(a: LetterAnalysis) -> LetterAnalysis:
     fake = Deadline(date="2026-11-28", what="⚠ SIMULATED AI MISTAKE: pay a $200 late fee",
                     source_quote="A late fee of $200.00 will be charged after November 28, 2026.")
     return a.model_copy(update={"deadlines": [fake, *a.deadlines]})
+
+
+# Ready-made answers to suggested questions, so "Ask a question" works in the demo with no AI key.
+# Keyed by the answer's document_type. Some questions are deliberately NOT answered by the letter,
+# to show that PlainSpeak says "the letter doesn't say" instead of guessing.
+_QA = {
+    _EVICTION_EN["document_type"]: [
+        ("What happens if I can't pay by December 4?",
+         {"answer": "The landlord can start a court case to take back your apartment. They can also ask you to pay "
+                    "court costs and their lawyer's fees. Call the Housing Help Line now. They may help you pay.",
+          "answered_from_letter": True,
+          "source_quotes": ["Failure to do so will result in the landlord instituting legal proceedings against you to "
+                            "recover possession of the premises",
+                            "together with court costs and attorney's fees as permitted by law"],
+          "who_to_ask": "Riverton Housing Help Line, (555) 013-7700"}),
+        ("Can I pay with a personal check?",
+         {"answer": "No. You must pay with a money order or a cashier's check.", "answered_from_letter": True,
+          "source_quotes": ["Personal checks will not be accepted. Payment must be made by money order or cashier's check."],
+          "who_to_ask": ""}),
+        ("Will I have to go to court right away?",
+         {"answer": "The letter doesn't say when a court case would start. Ask a free tenant lawyer or the Housing "
+                    "Help Line. They can explain what happens next where you live.",
+          "answered_from_letter": False, "source_quotes": [],
+          "who_to_ask": "Riverton Housing Help Line, (555) 013-7700, or a free tenant lawyer (LawHelp.org)"}),
+    ],
+    _EVICTION_ES["document_type"]: [
+        ("¿Qué pasa si no puedo pagar antes del 4 de diciembre?",
+         {"answer": "El arrendador puede empezar un caso en la corte para recuperar su apartamento. También puede "
+                    "pedirle que pague los costos de la corte y de su abogado. Llame ahora a la Línea de Ayuda de Vivienda.",
+          "answered_from_letter": True,
+          "source_quotes": ["Failure to do so will result in the landlord instituting legal proceedings against you to "
+                            "recover possession of the premises",
+                            "together with court costs and attorney's fees as permitted by law"],
+          "who_to_ask": "Línea de Ayuda de Vivienda de Riverton, (555) 013-7700"}),
+        ("¿Puedo pagar con un cheque personal?",
+         {"answer": "No. Tiene que pagar con giro postal (money order) o cheque de caja.", "answered_from_letter": True,
+          "source_quotes": ["Personal checks will not be accepted. Payment must be made by money order or cashier's check."],
+          "who_to_ask": ""}),
+    ],
+    _BENEFITS_EN["document_type"]: [
+        ("What if I can't do the interview on December 9?",
+         {"answer": "Call the county before December 9 to pick a new time.", "answered_from_letter": True,
+          "source_quotes": ["If you cannot attend your interview at the scheduled time, you must call Customer Service "
+                            "at (555) 019-4400 before your interview date to reschedule."],
+          "who_to_ask": ""}),
+        ("What papers do I need to send?",
+         {"answer": "Send Form FA-22, proof of all money your household got in the last 30 days, proof of your rent or "
+                    "housing costs, and any changes in who lives with you.", "answered_from_letter": True,
+          "source_quotes": ["verification of all household income received in the last 30 days, verification of current "
+                            "shelter costs, and any changes in household composition"],
+          "who_to_ask": ""}),
+        ("How much money will I get each month?",
+         {"answer": "The letter doesn't say how much you will get. Ask the county when they call you.",
+          "answered_from_letter": False, "source_quotes": [], "who_to_ask": "County Customer Service, (555) 019-4400"}),
+    ],
+    _BILL_EN["document_type"]: [
+        ("Can I get this bill lowered?",
+         {"answer": "Maybe. If your household income is low enough, the hospital may lower or remove the bill. "
+                    "Ask for a Financial Assistance Application before December 15.", "answered_from_letter": True,
+          "source_quotes": ["Patients with household income at or below 400% of the Federal Poverty Level may qualify "
+                            "for a full or partial reduction of their balance."],
+          "who_to_ask": "Riverton General Hospital Billing, (555) 017-3300"}),
+        ("Will this hurt my credit score?",
+         {"answer": "The letter doesn't talk about your credit score. It only says the bill may be sent to a "
+                    "collection agency after December 15. Ask the billing office.",
+          "answered_from_letter": False,
+          "source_quotes": ["your account may be referred to an outside collection agency"],
+          "who_to_ask": "Riverton General Hospital Billing, (555) 017-3300"}),
+    ],
+}
+
+
+def suggested_questions(a: LetterAnalysis) -> list[str]:
+    return [q for q, _ in _QA.get(a.document_type, [])]
+
+
+def demo_answer(a: LetterAnalysis, question: str):
+    """The saved answer for a suggested question, or None."""
+    from .schema import QuestionAnswer
+    for q, ans in _QA.get(a.document_type, []):
+        if q == question:
+            return QuestionAnswer(**ans)
+    return None

@@ -8,7 +8,7 @@ import os
 
 from dotenv import load_dotenv
 
-from .schema import LetterAnalysis
+from .schema import LetterAnalysis, QuestionAnswer
 
 load_dotenv()
 
@@ -47,36 +47,21 @@ def _models_to_try() -> list[str]:
     return models + [m for m in DEFAULT_MODELS if m != preferred]
 
 
-def analyze_letter(language: str, text: str = "", files: list[tuple[bytes, str]] | None = None) -> LetterAnalysis:
-    """Analyze a letter given as pasted text and/or photos/PDFs.
+def _ask_gemini(system_prompt: str, contents: list, answer_shape):
+    """Send `contents` to Gemini and return an object of type `answer_shape` (a Pydantic class).
 
-    `files` is a list of (file_bytes, mime_type), one per page, in order.
+    Tries each model in turn, and turns technical errors into friendly messages.
     """
-    files = files or []
-    if not has_api_key():
-        raise AnalyzerError("No API key found. Add GEMINI_API_KEY to your .env file, or try a sample letter.")
-    if not text.strip() and not files:
-        raise AnalyzerError("Please upload a photo of your letter or paste its text.")
-
     # Imported here so the app (and tests) still load without the library configured.
     from google import genai
     from google.genai import errors, types
 
     client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-
-    contents: list = [f"Explain this letter. The reader's language is: {language}."]
-    for page, (data, mime) in enumerate(files, start=1):
-        if len(files) > 1:
-            contents.append(f"Page {page}:")
-        contents.append(types.Part.from_bytes(data=data, mime_type=mime))
-    if text.strip():
-        contents.append("Letter text:\n" + text)
-
     config = types.GenerateContentConfig(
-        system_instruction=SYSTEM_PROMPT,
+        system_instruction=system_prompt,
         response_mime_type="application/json",
-        response_schema=LetterAnalysis,
-        temperature=0.2,  # low = more careful, less creative
+        response_schema=answer_shape,   # the AI must fill in exactly these fields
+        temperature=0.2,                # low = more careful, less creative
     )
 
     last_error = None
@@ -96,10 +81,55 @@ def analyze_letter(language: str, text: str = "", files: list[tuple[bytes, str]]
             last_error = e
             continue  # Google had a hiccup -> try the next model
         try:
-            if isinstance(response.parsed, LetterAnalysis):
+            if isinstance(response.parsed, answer_shape):
                 return response.parsed
-            return LetterAnalysis.model_validate_json(response.text)
+            return answer_shape.model_validate_json(response.text)
         except Exception as e:
             raise AnalyzerError("The AI gave an answer we couldn't read. Please try again.") from e
 
     raise AnalyzerError(f"No AI model was available right now. Last error: {last_error}")
+
+
+def analyze_letter(language: str, text: str = "", files: list[tuple[bytes, str]] | None = None) -> LetterAnalysis:
+    """Analyze a letter given as pasted text and/or photos/PDFs.
+
+    `files` is a list of (file_bytes, mime_type), one per page, in order.
+    """
+    files = files or []
+    if not has_api_key():
+        raise AnalyzerError("No API key found. Add GEMINI_API_KEY to your .env file, or try a sample letter.")
+    if not text.strip() and not files:
+        raise AnalyzerError("Please upload a photo of your letter or paste its text.")
+
+    from google.genai import types
+
+    contents: list = [f"Explain this letter. The reader's language is: {language}."]
+    for page, (data, mime) in enumerate(files, start=1):
+        if len(files) > 1:
+            contents.append(f"Page {page}:")
+        contents.append(types.Part.from_bytes(data=data, mime_type=mime))
+    if text.strip():
+        contents.append("Letter text:\n" + text)
+    return _ask_gemini(SYSTEM_PROMPT, contents, LetterAnalysis)
+
+
+QUESTION_PROMPT = """You answer a reader's question about ONE official letter.
+- Answer ONLY from what the letter says. Quote the exact words you used in `source_quotes`.
+- If the letter does not answer the question, say so plainly, set `answered_from_letter` to false,
+  and say who could answer it in `who_to_ask` (use a contact from the letter if there is one).
+- Never invent facts, dates, amounts, laws or phone numbers. No legal or medical advice.
+- Use short sentences and common words. Write the answer in the reader's language;
+  keep quotes in the letter's original language.
+"""
+
+
+def ask_question(letter_text: str, question: str, language: str) -> QuestionAnswer:
+    """Answer a follow-up question using only the letter."""
+    if not has_api_key():
+        raise AnalyzerError("Asking your own questions needs an AI key. Try one of the suggested questions.")
+    if not question.strip():
+        raise AnalyzerError("Type a question first.")
+    if len(question) > 500:
+        raise AnalyzerError("Please keep your question shorter (under 500 characters).")
+    contents = [f"The reader's language is: {language}.", "The letter:\n" + letter_text, "Question: " + question]
+    return _ask_gemini(QUESTION_PROMPT, contents, QuestionAnswer)

@@ -112,4 +112,37 @@ def labels(lang_code: str) -> dict[str, str]:
     """All labels for a language as a dictionary, e.g. labels('es')['todo'] -> 'Qué hacer'."""
     result = dict(zip(KEYS, TEXT.get(lang_code, TEXT["en"])))
     result.update(zip(EXTRA_KEYS, EXTRA.get(lang_code, EXTRA["en"])))
+    result.update(zip(ASK_KEYS, ASK.get(lang_code, ASK["en"])))
     return result
+
+
+# Labels for "Ask a question".
+ASK_KEYS = ["ask_title", "ask_placeholder", "ask_button", "not_in_letter", "who_to_ask", "suggested"]
+ASK = {
+    "en": ["Ask a question about this letter", "For example: What happens if I miss the deadline?", "Ask",
+           "The letter doesn't say this.", "Who can answer", "Common questions"],
+    "es": ["Haga una pregunta sobre esta carta", "Por ejemplo: ¿Qué pasa si no cumplo la fecha límite?", "Preguntar",
+           "La carta no dice esto.", "Quién puede responder", "Preguntas comunes"],
+    "zh-CN": ["关于这封信提个问题", "例如：如果我错过截止日期会怎样？", "提问",
+              "信中没有提到这一点。", "谁可以回答", "常见问题"],
+    "vi": ["Đặt câu hỏi về lá thư này", "Ví dụ: Điều gì xảy ra nếu tôi trễ hạn?", "Hỏi",
+           "Lá thư không nói điều này.", "Ai có thể trả lời", "Câu hỏi thường gặp"],
+    "ar": ["اسأل سؤالاً عن هذه الرسالة", "مثلاً: ماذا يحدث إذا فاتني الموعد؟", "اسأل",
+           "الرسالة لا تذكر هذا.", "من يمكنه الإجابة", "أسئلة شائعة"],
+    "hi": ["इस पत्र के बारे में सवाल पूछें", "जैसे: अगर मैं आखिरी तारीख चूक जाऊँ तो क्या होगा?", "पूछें",
+           "पत्र में यह नहीं लिखा है।", "कौन जवाब दे सकता है", "आम सवाल"],
+    "tl": ["Magtanong tungkol sa sulat na ito", "Halimbawa: Ano ang mangyayari kung lumampas ako sa deadline?", "Magtanong",
+           "Hindi ito sinasabi ng sulat.", "Sino ang makakasagot", "Mga karaniwang tanong"],
+    "fr": ["Poser une question sur cette lettre", "Par exemple : que se passe-t-il si je rate la date limite ?", "Demander",
+           "La lettre ne le dit pas.", "Qui peut répondre", "Questions fréquentes"],
+    "ko": ["이 편지에 대해 질문하기", "예: 마감일을 놓치면 어떻게 되나요?", "질문하기",
+           "편지에 이 내용은 없습니다.", "답해 줄 수 있는 곳", "자주 묻는 질문"],
+    "ru": ["Задать вопрос об этом письме", "Например: что будет, если я пропущу срок?", "Спросить",
+           "В письме об этом не сказано.", "Кто может ответить", "Частые вопросы"],
+    "pt": ["Faça uma pergunta sobre esta carta", "Por exemplo: o que acontece se eu perder o prazo?", "Perguntar",
+           "A carta não diz isso.", "Quem pode responder", "Perguntas comuns"],
+}
+
+# Generic questions offered when there is no ready-made list (live AI answers).
+GENERIC_QUESTIONS = ["What happens if I miss the deadline?", "Can I get help paying?",
+                     "What documents do I need?", "Who should I call first?"]

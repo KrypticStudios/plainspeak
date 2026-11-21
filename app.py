@@ -3,17 +3,34 @@
 Run with:  .venv/bin/streamlit run app.py
 """
 
+import os
+import uuid
+
 import streamlit as st
 
 from plainspeak import calendar_export, checks, demo, history
-from plainspeak.analyzer import AnalyzerError, analyze_letter, has_api_key
+from plainspeak.analyzer import AnalyzerError, analyze_letter, ask_question, has_api_key
 from plainspeak.export import next_deadline, summary_html
 from plainspeak.images import prepare_image
 from plainspeak.schema import LetterAnalysis
 from plainspeak.speech import LANGUAGES, RTL_LANGUAGES, text_to_mp3
-from plainspeak.ui_text import friendly_date, labels
+from plainspeak.ui_text import GENERIC_QUESTIONS, friendly_date, labels
 
 st.set_page_config(page_title="PlainSpeak", page_icon="📬", layout="centered")
+
+# On Streamlit Cloud the key lives in the app's private "Secrets" box, not in a .env file.
+try:
+    for name in ("GEMINI_API_KEY", "GEMINI_MODEL"):
+        if name in st.secrets and not os.getenv(name):
+            os.environ[name] = st.secrets[name]
+except FileNotFoundError:
+    pass  # running locally with no secrets file: .env is used instead
+
+# Who owns saved letters. On your own computer (PLAINSPEAK_LOCAL=1) they're kept between visits.
+# On the public website each visitor gets a private random ID, so nobody sees anyone else's letters.
+if "owner" not in st.session_state:
+    st.session_state.owner = "local" if os.getenv("PLAINSPEAK_LOCAL") == "1" else uuid.uuid4().hex
+OWNER = st.session_state.owner
 
 # ---------- Sidebar: language, accessibility, history ----------
 with st.sidebar:
@@ -23,19 +40,21 @@ with st.sidebar:
 
     st.divider()
     st.header("🗂️ My letters")
-    recent = history.list_recent()
+    recent = history.list_recent(OWNER)
     if not recent:
-        st.caption("Letters you save will show up here. They stay on this computer.")
+        st.caption("Letters you save show up here. Only you can see them."
+                   + ("" if OWNER == "local" else " They're cleared when you close this page."))
     for letter_id, saved_at, lang, doc_type in recent:
         col_open, col_del = st.columns([4, 1])
         if col_open.button(f"{doc_type} · {saved_at[:10]}", key=f"open-{letter_id}", use_container_width=True):
-            loaded = history.load(letter_id)
+            loaded = history.load(letter_id, OWNER)
             if loaded:
                 st.session_state.result, st.session_state.result_lang = loaded
                 st.session_state.saved_id = letter_id
                 st.session_state.pop("audio", None)
+                st.session_state.pop("qa", None)
         if col_del.button("🗑️", key=f"del-{letter_id}", help="Delete this letter"):
-            history.delete(letter_id)
+            history.delete(letter_id, OWNER)
             st.rerun()
 
     st.divider()
@@ -100,6 +119,7 @@ def show_answer(result: LetterAnalysis, lang_name: str) -> None:
     st.session_state.result, st.session_state.result_lang = result, lang_name
     st.session_state.saved_id = None
     st.session_state.pop("audio", None)
+    st.session_state.pop("qa", None)
 
 
 # ---------- Header ----------
@@ -209,7 +229,7 @@ def show_result(a: LetterAnalysis, lang_name: str) -> None:
         st.markdown(f'<h3 dir="{direction}">{icon} {esc(text)}</h3>', unsafe_allow_html=True)
 
     if st.button(f"⬅️ {t['start_over']}", key="start-over"):
-        for key in ("result", "result_lang", "saved_id", "audio"):
+        for key in ("result", "result_lang", "saved_id", "audio", "qa"):
             st.session_state.pop(key, None)
         st.rerun()
     if "notice" in st.session_state:
@@ -305,6 +325,42 @@ def show_result(a: LetterAnalysis, lang_name: str) -> None:
         heading("🛡️", t["rights"])
         card("<br>".join(f"• {esc(r)}" for r in a.rights))
 
+    # --- Ask a question ---
+    heading("🙋", t["ask_title"])
+    suggestions = demo.suggested_questions(a) or (GENERIC_QUESTIONS if has_api_key() else [])
+    asked = None
+    if suggestions:
+        st.caption(t["suggested"])
+        for i, q in enumerate(suggestions):
+            if st.button(q, key=f"suggest-{i}"):
+                asked = q
+    with st.form("ask-form", clear_on_submit=True):
+        typed = st.text_input(t["ask_title"], placeholder=t["ask_placeholder"], label_visibility="collapsed",
+                              max_chars=500, disabled=not has_api_key())
+        if st.form_submit_button(t["ask_button"], disabled=not has_api_key()) and typed:
+            asked = typed
+    if not has_api_key():
+        st.caption("Typing your own question needs an AI key. Try a common question above.")
+    if asked:
+        answer = demo.demo_answer(a, asked)
+        if answer is None:
+            with st.spinner("…"):
+                try:
+                    answer = ask_question(a.original_text, asked, lang_name)
+                except AnalyzerError as e:
+                    st.error(str(e), icon="🚫")
+        if answer:
+            st.session_state.qa = [(asked, answer)] + st.session_state.get("qa", [])[:4]
+    for q, ans in st.session_state.get("qa", []):
+        body = f"<b>❔ {esc(q)}</b><br>{esc(ans.answer)}"
+        if not ans.answered_from_letter:
+            body += f'<br><span class="ps-warn">ℹ️ {esc(t["not_in_letter"])}</span>'
+        for quote in ans.source_quotes:
+            body += quote_html(quote, a.original_text, t)
+        if ans.who_to_ask:
+            body += f"<br>👤 <b>{esc(t['who_to_ask'])}:</b> {esc(ans.who_to_ask)}"
+        card(body)
+
     if a.confidence != "high" or a.unclear_points:
         sure = {"high": "", "medium": " (?)", "low": " (??)"}[a.confidence]
         heading("❓", t["not_sure"] + sure)
@@ -328,7 +384,7 @@ def show_result(a: LetterAnalysis, lang_name: str) -> None:
     if st.session_state.get("saved_id"):
         col_save.caption(f"✓ {t['saved']}")
     elif col_save.button(f"💾 {t['save']}", use_container_width=True):
-        st.session_state.saved_id = history.save(a, lang_name)
+        st.session_state.saved_id = history.save(a, lang_name, OWNER)
         st.rerun()
 
     with st.expander(t["show_original"]):
