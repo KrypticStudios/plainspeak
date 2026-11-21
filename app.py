@@ -3,12 +3,26 @@
 Run with:  .venv/bin/streamlit run app.py
 """
 
+import importlib
 import os
 import uuid
 
 import streamlit as st
 
-from plainspeak import calendar_export, checks, demo, history
+import plainspeak.schema  # noqa: E402  (loaded first: the other files use it)
+
+# Streamlit Cloud updates the app when we push to GitHub, but it can keep running OLD copies of our
+# other files (plainspeak/*.py). That once crashed the live site. So: if any of our files changed on
+# disk since it was loaded, reload it. This costs nothing when nothing has changed.
+for _name in ["schema", "checks", "ui_text", "calendar_export", "export", "images", "privacy", "speech",
+              "history", "demo", "analyzer"]:
+    _mod = importlib.import_module(f"plainspeak.{_name}")
+    _mtime = os.path.getmtime(_mod.__file__)
+    if getattr(_mod, "_loaded_mtime", None) != _mtime:   # changed, or an old copy from before this check
+        _mod = importlib.reload(_mod)
+    _mod._loaded_mtime = _mtime
+
+from plainspeak import calendar_export, checks, demo, history  # noqa: E402
 from plainspeak.analyzer import AnalyzerError, analyze_letter, ask_question, has_api_key
 from plainspeak.export import next_deadline, summary_html
 from plainspeak.images import prepare_image
