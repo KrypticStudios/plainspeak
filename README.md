@@ -1,113 +1,101 @@
 # 📬 PlainSpeak
 
-**Take a photo of a confusing official letter and find out what it means, what to do, and by when, in plain words and in your own language.**
+**Take a photo of a confusing official letter. Find out what it means, what to do, and by when, in plain words and in your own language.**
 
-Built for **EvoHacks 2.0**, whose theme is *Projects for Social Good*.
+Built at **EvoHacks 2.0** (theme: *Projects for Social Good*).
 
 ![PlainSpeak](docs/cover.jpg)
 
-### 👉 Try it: **https://plainspeak.streamlit.app**
-No sign-up needed. Click one of the example letters, or paste or photograph a letter of your own. Please use made-up details, see [Privacy](#privacy-and-security).
+**Try it: https://plainspeak.streamlit.app** (no sign-up). Please use the examples or made-up details. See [Privacy](#privacy-and-security).
 
-**One-click examples:** [eviction notice](https://plainspeak.streamlit.app/?example=eviction) · [the same in Spanish](https://plainspeak.streamlit.app/?example=eviction&lang=es) · [food benefits](https://plainspeak.streamlit.app/?example=benefits) · [hospital bill](https://plainspeak.streamlit.app/?example=hospital) · [watch it catch an AI mistake](https://plainspeak.streamlit.app/?example=eviction&mistake=1) · [high contrast + large text](https://plainspeak.streamlit.app/?example=benefits&contrast=1&bigtext=1)
+One-click examples: [eviction notice](https://plainspeak.streamlit.app/?example=eviction) · [in Spanish](https://plainspeak.streamlit.app/?example=eviction&lang=es) · [food benefits](https://plainspeak.streamlit.app/?example=benefits) · [hospital bill](https://plainspeak.streamlit.app/?example=hospital) · [watch it catch AI mistakes](https://plainspeak.streamlit.app/?example=eviction&mistake=1) · [high contrast + large text](https://plainspeak.streamlit.app/?example=benefits&contrast=1&bigtext=1)
 
-| At a glance | Every fact checked against the letter | On a phone |
+| At a glance | Checking the AI's work | On a phone |
 |---|---|---|
 | ![results](docs/results.jpg) | ![catches AI mistakes](docs/catches-ai-mistakes.jpg) | ![phone](docs/phone.jpg) |
 
 ## The problem
-Eviction notices, hospital bills and benefits renewals are written in legal, bureaucratic language. People who are still learning English, elderly people and people who struggle with reading often can't tell what the letter is asking for, or how urgent it is. When they miss a deadline, they can lose their home, their food benefits, or end up with a bill in collections, even though help was often offered in the same letter.
+Eviction notices, hospital bills and benefits renewals are written in legal language. People learning English, older people and people who struggle with reading often can't tell what a letter wants or how urgent it is. Missing a deadline can cost them their home, their benefits, or a bill sent to collections. Often the help they needed (rental assistance, a payment plan, how to reschedule) was in the same letter.
 
-## What PlainSpeak does
-1. **Read**: you upload a photo of each page, a PDF, or the pasted text. Photos are straightened and shrunk automatically.
-2. **Explain**: the app gives a 2–4 sentence summary at a 5th-grade reading level and tells you how urgent the letter is.
-3. **Act**: it lists the deadlines, a checklist of what to do, the money involved, and who to call (phone numbers you can tap).
-4. **Your language**: the explanation comes in 11 languages, with read-aloud. Right-to-left text is supported for Arabic.
-5. **At a glance**: the top of the results shows how urgent the letter is, a countdown (e.g. "18 days left") to the next deadline, and the first thing to do.
-6. **Remember**: you can add the deadlines to Google, Apple or Outlook Calendar with a reminder 2 days before, save letters to *My letters*, or download a summary page to print or send to someone who helps you.
-7. **Get help**: every answer links to 211 (free local help) and LawHelp.org (free legal aid).
+## What it does
+- **Explains** the letter in 2–4 short sentences at about a 5th-grade reading level, in 11 languages, and can **read it aloud**. The whole app speaks the reader's language, not just the answer.
+- **At a glance:** how urgent it is, a countdown to the next deadline ("13 days left"), and the first thing to do.
+- **Lists** the deadlines (with an add-to-calendar file), the steps, the money, who to call, and the reader's rights as stated in the letter.
+- **Answers questions** like "What if I can't pay?" using only the letter. If the letter doesn't say, it says so.
+- **Points to people:** serious letters get "talk to a real person", and every answer shows 211 and LawHelp.org.
+- **Share:** send a short summary by WhatsApp, text or email to a family member who helps, or print one.
 
-### Why you can trust it
-AI can make things up. PlainSpeak protects against that:
-- **Every deadline, step and amount quotes the exact words from the letter.** Ordinary Python code, not the AI, then checks that those words really appear in the letter. If they don't, the item gets a ⚠ warning so you know to double-check it.
-- Only dates that pass this check go into the calendar file.
-- In the sample tab, the **🧪 "Show how PlainSpeak catches AI mistakes"** switch adds a fake deadline so you can watch the check flag it.
-- The AI has to list **what it's unsure about** and give a **confidence** level.
-- Serious letters (eviction, court, debt, losing benefits) get a **"talk to a real person"** warning. PlainSpeak explains letters. It does not give legal advice.
-- It shows how hard the original letter is to read compared with the summary, measured as a school grade level (Flesch-Kincaid).
+## Checking the AI's work
+AI can make things up, and a wrong date on an eviction notice is dangerous. So the AI has to **quote the letter** for every deadline, step and amount, and plain Python code (`plainspeak/checks.py`, no AI) checks it:
+- **The quote is in the letter.** Small wording differences are allowed, but every *number* must match exactly. For pasted text we check against the text you pasted. For photos, there is no independent copy of the text, so we check against the AI's own reading of the photo, and the app says so ("found in what we read from your photo").
+- **The date is written in the letter, in that sentence.** If the letter only says "within 14 days after service", the AI may calculate a date, but that depends on when you received it, so we never put it in the countdown or calendar. If the AI pairs a real sentence with a *different* date from elsewhere in the letter, it is flagged.
+- **Phone numbers are only tap-to-call if they're in the letter.**
+- The 🧪 demo adds two fake mistakes (an invented deadline, and a real sentence with the wrong date) so you can watch the checks catch them.
 
-### How well does it work? We tested it.
-We wrote **19 test letters** modeled on real public templates: the CFPB debt-collection model notice, CMS Medicaid notices, an IRS balance-due notice, a state statutory 14-day eviction notice, a court eviction summons, a jury summons, and more. All names and numbers are fictional. For each one we wrote down the correct answers by hand. Then we ran PlainSpeak on them as pasted text, as **used, folded, coffee-stained phone photos**, as **blurry photos**, as **scanned PDFs**, and in Spanish: **35 runs** in total.
+## Testing
+**Evaluation (`eval/`).** We wrote 19 fictional test letters modeled on real public templates (CFPB debt-collection model notice, CMS Medicaid notices, IRS balance-due notice, a state 14-day eviction notice, a court summons, a jury summons and more) and wrote the correct answers by hand. Then we ran PlainSpeak on them as pasted text, as used and stained phone photos, as blurry photos, as scanned PDFs, and in Spanish. Quotes and dates are scored against the *real* letter text. We wrote both the letters and the answers ourselves, so this is a careful self-test, not a study with real users.
 
-| Result (35 runs) | |
+| Results (35 runs on 19 letters) | |
 |---|---|
-| Deadlines found | **97%** (30/31) |
+| Deadlines found (right date, quote in the letter, date in that sentence) | **97%** (30/31) |
 | Money amounts found | **100%** (20/20) |
-| Quotes verified as really in the letter | **100%** (164/164) |
-| Urgency and "talk to a real person" correct | **100%** (34/34) |
-| Reading level | **grade 10.0 → 4.9** |
-| Time per letter (median) | **3.3 s** |
-| Tricky cases: a letter that tries to trick the AI, a non-letter | both handled ✅ |
+| Quotes that are really in the original letter | **99%** (155/156) |
+| Wrong dates the app would have shown as certain | **0** |
+| Urgency: exact match with our answer / an acceptable answer | **76%** (26/34) / 97% (33/34) |
+| "Talk to a real person" (letters where we set an answer) | **100%** (15/15) |
+| Reading level of letter → summary (pasted English letters) | grade 10.0 → 4.8 |
+| Median time per letter | about 3 s (text) to 4 s (photos and PDFs) |
+| Safety cases: a letter that tries to trick the AI, a non-letter | both handled ✅ |
 
-We also run **real files through the actual upload button** in Chrome (`tests/e2e_uploads.py`): a 4000×3000 phone photo, a scanned PDF, a PNG and a 2-page letter are explained, and six kinds of bad file (fake image, half-downloaded photo, 30,000-pixel image, 6-page PDF, 6 photos, good + bad page mixed) are refused with a clear message. **10/10 pass on the live site.**
+The main weak spots: urgency is sometimes one level off (the app leans toward "urgent"), and on one stained photo where the deadline was cut off at the edge, the deadline was missed. The guessed date was flagged, not shown as certain.
 
-Full results, the one miss, and what we changed because of the test: **[eval/RESULTS.md](eval/RESULTS.md)**. The test runner is `eval/run_eval.py` and the answer key is `eval/cases.json`.
+Full results, including everything it got wrong: [eval/RESULTS.md](eval/RESULTS.md).
 
-### Accessibility, checked
-We ran **axe-core**, the standard automated WCAG checker, on six real pages: the start screen, results, the AI-mistake demo, Arabic right-to-left, high contrast with large text, and Spanish. **0 WCAG 2.1 AA violations.** Every custom color pair also meets AA contrast (most meet AAA). Run `tests/a11y_audit.py`.
+**Other tests:**
+- 35+ unit tests: `pytest -q`.
+- A browser test, `tests/e2e_uploads.py`, puts real files through the actual upload button. A phone photo, a scan, a PNG and a 2-page letter are explained. Six kinds of bad file (fake image, half-downloaded photo, giant image, too many pages) are refused with a clear message.
+- An automated accessibility scan with axe-core, `tests/a11y_audit.py`, found 0 WCAG 2.1 AA violations on six pages (English, Spanish, Arabic right-to-left, high contrast). Automated scans catch only some issues. We haven't yet done a full screen-reader test.
 
-### Privacy and security
-On the public site, no letters are stored on disk; saved letters disappear when you close the page. ID numbers are hidden before text is sent to the AI, uploads are checked, usage is rate-limited, and the API key never reaches the browser. See **[SECURITY.md](SECURITY.md)** for the full design and its limits, including that this demo uses Gemini's free tier.
+## Privacy and security
+- On the public site, **no letters are written to disk**. Saved letters live in your session in server memory and are gone when you close the page.
+- The API key stays on the server.
+- Uploads are checked (real image or PDF, size, total pages) on the server.
+- Usage is rate-limited.
+- AI text is escaped so a letter can't inject links or code into the page.
+- **Limits:** this demo uses Gemini's *free* tier, where Google may use what you send to improve its products. We hide common ID numbers in *pasted* text only (best-effort, not photos). The app shows this warning above the upload button.
 
-### Accessibility
-The app has options for larger text and high contrast, can read the summary aloud, explains in 11 languages including right-to-left Arabic, and uses plain wording throughout, including in its error messages. Urgency is shown with an icon and words as well as color, so it doesn't rely on color alone.
+Details are in **[SECURITY.md](SECURITY.md)**.
 
 ## Tech
-| Part | Tool |
-|---|---|
-| Web app | Python and [Streamlit](https://streamlit.io) |
-| Reading photos and explaining letters | Google Gemini API (free tier), using structured JSON output checked by Pydantic |
-| Quote checking and reading level | Python's `difflib` and [`textstat`](https://github.com/textstat/textstat) |
-| Read-aloud | [gTTS](https://github.com/pndurette/gTTS) |
-| Calendar | [`icalendar`](https://github.com/collective/icalendar), which makes `.ics` files |
-| Saved letters | SQLite |
+Python + Streamlit · Google Gemini API (structured JSON output, validated with Pydantic) · our own checks (`difflib`, regular expressions) · pypdf · Pillow · gTTS (read-aloud) · icalendar · Babel (dates in 11 languages) · textstat (reading level) · SQLite (local mode) · pytest, Playwright and axe-core (testing).
 
 ## Run it yourself
 ```bash
-git clone <this repo>
-cd Evohacks
+git clone https://github.com/KrypticStudios/plainspeak.git
+cd plainspeak
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env    # then paste a free key from https://aistudio.google.com into .env
+cp .env.example .env    # paste a free key from https://aistudio.google.com into .env
 streamlit run app.py
 ```
-**No key?** The app runs in demo mode with three made-up sample letters, so you can try it without signing up for anything.
+No key? The example letters still work. For testing, run `pip install -r requirements-dev.txt`, then `pytest -q`.
 
-Run the tests with `pytest -q`.
-
-## Project structure
+## How it's organized
 ```
-app.py                       the web page (everything you see)
-plainspeak/schema.py         the shape of the AI's answer
-plainspeak/analyzer.py       sends the letter to Gemini
-plainspeak/checks.py         quote checker and reading level (no AI)
-plainspeak/calendar_export.py  deadlines -> .ics calendar file
-plainspeak/speech.py         read-aloud and language list
-plainspeak/history.py        My letters (SQLite)
-plainspeak/demo.py           saved answers for the sample letters
-plainspeak/export.py         countdown and printable summary page
-plainspeak/images.py         straightens and shrinks phone photos
-plainspeak/ui_text.py        labels and dates in 11 languages
-samples/                     made-up letters for testing and the demo
-tests/                       automated tests
+app.py                     the web page
+plainspeak/analyzer.py     sends the letter to Gemini, with our rules (the prompt)
+plainspeak/schema.py       the exact shape the AI must answer in
+plainspeak/checks.py       quote, date and phone checks (no AI)
+plainspeak/privacy.py      ID hiding, upload checks, rate limits
+plainspeak/export.py       countdown, printable summary, share message
+plainspeak/ui_start.py, ui_text.py   all text in 11 languages
+eval/                      evaluation: answer key, scorer, results
+tests/                     unit tests, browser upload test, accessibility scan
 ```
 
-## Built during EvoHacks 2.0
-Everything in this repo was written during the event (Nov 21–22, 2026). There was no code before the event. The sample letters are made up: every name, address, phone number and case number in them is fictional.
+## Built at EvoHacks 2.0, and how we used AI
+Everything here was built during the event (Nov 21–22, 2026). There was no code before it. All sample and test letters are fictional.
 
-**AI assistance:** we used Claude (Anthropic) as a coding assistant to help write and review code. The app itself uses Google Gemini at runtime. We can explain every part of the code.
+**Most of the code was written with Claude (Anthropic), an AI coding assistant**, directed by our team. We chose the problem and the users, decided how the app should behave (for example, never showing a calculated eviction date as certain, and putting the countdown first), wrote and checked the sample letters and answers, tested the app, and reviewed the code until we could explain it. The app itself uses Google Gemini to read letters.
 
-**Libraries used:** Streamlit, google-genai, Pydantic, gTTS, icalendar, textstat, python-dotenv, Pillow, pytest.
-
-## Disclaimer
-PlainSpeak helps you understand a letter. It is not legal, medical or financial advice. For anything serious, contact a lawyer, a caseworker, or the office that sent the letter.
+PlainSpeak explains letters. It is not legal, medical or financial advice.
