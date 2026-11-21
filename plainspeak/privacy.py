@@ -71,6 +71,7 @@ class RateLimiter:
 MAX_PAGES = 5
 MAX_BYTES = 10 * 1024 * 1024  # 10 MB per file
 MAX_TEXT_CHARS = 20_000
+MAX_PIXELS = 40_000_000  # about 4x a 12-megapixel phone photo
 
 
 def pdf_page_count(data: bytes) -> int:
@@ -99,8 +100,14 @@ def check_upload(data: bytes, mime_type: str) -> str | None:
 
         from PIL import Image, UnidentifiedImageError
         try:
-            Image.open(BytesIO(data)).verify()   # checks it's really an image, without running anything
+            img = Image.open(BytesIO(data))
+            if img.width * img.height > MAX_PIXELS:   # a tiny file can claim to be gigantic
+                return "That picture is too large. Please use a normal phone photo."
+            img.verify()                               # checks it's really an image, without running anything
+            Image.open(BytesIO(data)).load()           # and that the whole picture is there (not cut off)
             return None
-        except (UnidentifiedImageError, OSError, SyntaxError):
+        except Image.DecompressionBombError:
+            return "That picture is too large. Please use a normal phone photo."
+        except (UnidentifiedImageError, OSError, SyntaxError, ValueError):
             return "We couldn't open that picture. Please try a JPG or PNG photo."
     return "Please upload a photo (JPG or PNG) or a PDF."

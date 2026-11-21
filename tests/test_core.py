@@ -223,3 +223,17 @@ def test_monitor_records_kinds_not_content(caplog):
     assert monitor.counts()["ai_other"] >= 1
     assert monitor.kind_of_error("The AI service is very busy right now.") == "ai_busy"
     assert monitor.kind_of_error("The free AI limit was reached.") == "ai_limit"
+
+
+def test_broken_and_giant_pictures_are_refused():
+    from io import BytesIO
+    from PIL import Image
+    from plainspeak.privacy import check_upload
+    buf = BytesIO()
+    Image.new("RGB", (800, 600), "white").save(buf, format="JPEG")
+    good = buf.getvalue()
+    assert check_upload(good, "image/jpeg") is None
+    assert check_upload(good[: len(good) // 2], "image/jpeg")         # half a photo (download cut off)
+    giant = BytesIO()
+    Image.new("1", (30_000, 30_000)).save(giant, format="PNG")        # small file, huge picture
+    assert "too large" in check_upload(giant.getvalue(), "image/png")

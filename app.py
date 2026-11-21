@@ -87,11 +87,18 @@ def ai_allowed() -> bool:
         return False
     return True
 
+# ---------- Shareable links ----------
+# e.g. https://plainspeak.streamlit.app/?example=eviction&lang=es opens a finished example in Spanish,
+# so a judge (or a screenshot) gets there in one click. Options: example=eviction|benefits|hospital,
+# lang=<code like es, ar, zh-CN>, mistake=1 (show the catch-an-AI-mistake demo), contrast=1, bigtext=1.
+LINK = {k: st.query_params.get(k, "") for k in ("example", "lang", "mistake", "contrast", "bigtext")}
+LINK_EXAMPLES = {"eviction": "Eviction notice (rent)", "benefits": "Food benefits renewal", "hospital": "Hospital bill"}
+
 # ---------- Sidebar: language, accessibility, history ----------
 with st.sidebar:
     st.header("⚙️ Display")
-    big_text = st.toggle("Larger text", value=False)
-    high_contrast = st.toggle("High contrast", value=False)
+    big_text = st.toggle("Larger text", value=LINK["bigtext"] == "1")
+    high_contrast = st.toggle("High contrast", value=LINK["contrast"] == "1")
 
     st.divider()
     st.header("🗂️ My letters")
@@ -200,8 +207,20 @@ st.title("📬 PlainSpeak")
 st.markdown("**Got a confusing letter?** We'll tell you what it means, what to do, and by when, "
             "in plain words and in your language.")
 
+_codes = list(LANGUAGES.values())
 language = st.selectbox("🌐 Explain my letter in / Idioma / 语言 / Ngôn ngữ / اللغة", list(LANGUAGES),
+                        index=_codes.index(LINK["lang"]) if LINK["lang"] in _codes else 0,
                         help="The summary and steps will be in this language.")
+
+# Open the example from a shareable link (only once, so "Explain another letter" still works).
+if LINK["example"] in LINK_EXAMPLES and not st.session_state.get("link_opened"):
+    st.session_state.link_opened = True
+    _name = LINK_EXAMPLES[LINK["example"]]
+    _saved = demo.demo_analysis(_name, language)
+    if _saved is None:   # no saved answer in this language: show English and say so
+        _saved, language = demo.demo_analysis(_name, "English"), "English"
+        st.session_state.notice = "This example is saved in English only."
+    show_answer(demo.with_simulated_mistake(_saved) if LINK["mistake"] == "1" else _saved, language)
 
 
 # ---------- Start screen (shown when there is no answer yet) ----------
@@ -228,17 +247,20 @@ def start_screen() -> None:
         snap = st.camera_input("Take a photo of your letter") if use_camera else None
         pages = ([snap] if snap else []) + list(uploads or [])
         if pages:
-            images = [p for p in pages if p.type.startswith("image/")]
+            # Check every file FIRST. Only real, readable pictures get a preview (a broken file must
+            # show a friendly message, not crash the page).
+            errors = {p.file_id: check_upload(p.getvalue(), p.type) for p in pages}
+            problems = [f"{p.name}: {errors[p.file_id]}" for p in pages if errors[p.file_id]]
+            images = [p for p in pages if p.type.startswith("image/") and not errors[p.file_id]]
             if images:
                 st.image(images, caption=[f"Page {i}" for i in range(1, len(images) + 1)], width=140)
-            problems = [f"{p.name}: {err}" for p in pages if (err := check_upload(p.getvalue(), p.type))]
             if len(pages) > MAX_PAGES:
                 problems.append(f"Please add at most {MAX_PAGES} pages at a time.")
             for problem in problems:
                 st.error(problem, icon="🚫")
             reported = st.session_state.setdefault("reported_uploads", set())
             for p in pages:   # count each refused file once, not on every page refresh
-                if p.file_id not in reported and check_upload(p.getvalue(), p.type):
+                if p.file_id not in reported and errors[p.file_id]:
                     reported.add(p.file_id)
                     monitor.record("bad_upload")
             if st.button(f"Explain my letter ({len(pages)} page{'s' if len(pages) > 1 else ''})", type="primary",
@@ -324,6 +346,7 @@ def show_result(a: LetterAnalysis, lang_name: str) -> None:
     if st.button(f"⬅️ {t['start_over']}", key="start-over"):
         for key in ("result", "result_lang", "saved_id", "audio", "qa"):
             st.session_state.pop(key, None)
+        st.query_params.clear()   # so a shared link doesn't keep reopening the example
         st.rerun()
     if "notice" in st.session_state:
         st.info(st.session_state.pop("notice"), icon="ℹ️")
