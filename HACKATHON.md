@@ -40,7 +40,7 @@ Devpost: https://evohacks2.devpost.com · Site: https://evohacks.xyz · Discord:
 Pattern: specific real problem, clear user, AI doing a concrete job with trust/transparency built in.
 
 ## Team setup
-- Team of 2, both beginners, Python stack
+- Team of 3 (third member joined Sat ~10:45 AM PST), all beginners, Python stack
 - Split: Claude does the advanced code (backend, AI integration, auth, deploy); teammates do beginner-friendly work and must understand the code well enough to explain it in the video (AI policy)
 - Teammate tasks: UI text/copy, test data & manual testing, small UI tweaks, Devpost write-up, demo video script/recording, slides/screenshots, reading + annotating key code files
 - Budget: $0. No paid APIs or hosting.
