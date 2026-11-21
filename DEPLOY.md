@@ -1,6 +1,6 @@
-# Put PlainSpeak online (free, about 5 minutes)
+# Put PlainSpeak online (free, about 5 minutes, works from a phone)
 
-You need: the GitHub account that owns the repo (KrypticStudios) and your free Gemini key from https://aistudio.google.com.
+You need: the GitHub account that owns the repo (KrypticStudios). The Gemini key from https://aistudio.google.com is **optional at first**. Without it, the site runs in demo mode with the example letters, so you can deploy now and add the key later (see the end of this file).
 
 1. Go to **https://share.streamlit.io** and click **Continue with GitHub**. Sign in as KrypticStudios and allow access.
 2. Click **Create app** → **Deploy a public app from GitHub**.
@@ -25,4 +25,5 @@ You need: the GitHub account that owns the repo (KrypticStudios) and your free G
 - **"No AI model was available":** in Secrets, add a line `GEMINI_MODEL = "..."` with a model name from AI Studio's model list, then click **Reboot app**.
 - **"The free AI limit was reached":** wait a minute. The free tier has per-minute limits.
 - **The app is "asleep":** free apps sleep after a while with no visitors. Click **Yes, get this app back up**, and wake it before judging starts.
-- **To change the key:** go to app ⋮ → **Settings** → **Secrets**.
+- **To add or change the key later:** go to share.streamlit.io → your app's **⋮** → **Settings** → **Secrets**, paste `GEMINI_API_KEY = "..."`, then **Save**. The app restarts by itself.
+- **Send the link** (e.g. `https://plainspeak-evohacks.streamlit.app`) back in the chat so it can be checked and added to the README and Devpost.
