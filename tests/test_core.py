@@ -246,3 +246,45 @@ def test_start_screen_text_complete_in_every_language():
         missing = set(UI["en"]) - set(UI[code])
         assert not missing, (code, missing)
         assert "{n}" in ui(code)["ids_hidden"]
+
+
+class _FakeModels:
+    """Pretends to be Google: the main key is out of quota, the backup key works."""
+    def __init__(self, key, calls):
+        self.key, self.calls = key, calls
+
+    def generate_content(self, model, contents, config):
+        from google.genai import errors
+        self.calls.append((self.key, model))
+        if self.key == "MAIN":
+            raise errors.ClientError(429, {"error": {"code": 429, "message": "quota", "status": "RESOURCE_EXHAUSTED"}})
+        answer = demo.demo_analysis("Hospital bill", "English")
+        return type("R", (), {"parsed": answer, "text": answer.model_dump_json()})()
+
+
+def _fake_google(monkeypatch, calls):
+    from google import genai
+
+    class FakeClient:
+        def __init__(self, api_key, http_options=None):
+            self.models = _FakeModels(api_key, calls)
+    monkeypatch.setattr(genai, "Client", FakeClient)
+
+
+def test_backup_key_takes_over_when_main_key_is_out_of_quota(monkeypatch):
+    calls = []
+    _fake_google(monkeypatch, calls)
+    monkeypatch.setenv("GEMINI_API_KEY", "MAIN")
+    monkeypatch.setenv("GEMINI_BACKUP_API_KEY", "BACKUP")
+    result = analyze_letter("English", text="some letter")
+    assert result.document_type.startswith("Hospital bill")
+    assert calls[-1][0] == "BACKUP" and any(k == "MAIN" for k, _ in calls)
+
+
+def test_without_backup_key_the_limit_message_is_friendly(monkeypatch):
+    calls = []
+    _fake_google(monkeypatch, calls)
+    monkeypatch.setenv("GEMINI_API_KEY", "MAIN")
+    monkeypatch.delenv("GEMINI_BACKUP_API_KEY", raising=False)
+    with pytest.raises(AnalyzerError, match="free AI limit"):
+        analyze_letter("English", text="some letter")

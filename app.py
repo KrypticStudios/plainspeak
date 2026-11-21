@@ -38,7 +38,7 @@ st.set_page_config(page_title="PlainSpeak", page_icon="📬", layout="centered")
 
 # On Streamlit Cloud the key lives in the app's private "Secrets" box, not in a .env file.
 try:
-    for name in ("GEMINI_API_KEY", "GEMINI_MODEL"):
+    for name in ("GEMINI_API_KEY", "GEMINI_BACKUP_API_KEY", "GEMINI_MODEL"):
         if name in st.secrets and not os.getenv(name):
             os.environ[name] = st.secrets[name]
 except FileNotFoundError:

@@ -56,6 +56,13 @@ def has_api_key() -> bool:
     return bool(os.getenv("GEMINI_API_KEY"))
 
 
+def _keys_to_try() -> list[str]:
+    """The main key, then an optional backup key (from a different Google project, so it has its own
+    free limit). If the main key runs out during judging, PlainSpeak keeps working on the backup."""
+    keys = [os.getenv("GEMINI_API_KEY"), os.getenv("GEMINI_BACKUP_API_KEY")]
+    return [k for i, k in enumerate(keys) if k and k not in keys[:i]]
+
+
 def _models_to_try() -> list[str]:
     preferred = os.getenv("GEMINI_MODEL")
     models = [preferred] if preferred else []
@@ -71,9 +78,6 @@ def _ask_gemini(system_prompt: str, contents: list, answer_shape):
     from google import genai
     from google.genai import errors, types
 
-    client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"),
-                          http_options=types.HttpOptions(timeout=TIMEOUT_SECONDS * 1000))
-
     def config_for(model: str):
         return types.GenerateContentConfig(
             system_instruction=system_prompt,
@@ -84,33 +88,41 @@ def _ask_gemini(system_prompt: str, contents: list, answer_shape):
             thinking_config=types.ThinkingConfig(thinking_level="low") if model.startswith("gemini-3") else None,
         )
 
-    busy = False
-    for model in _models_to_try():
-        try:
-            response = client.models.generate_content(model=model, contents=contents, config=config_for(model))
-        except errors.ClientError as e:
-            if e.code in (400, 404):  # this model doesn't exist or doesn't accept these settings -> next one
+    busy = limited = bad_key = False
+    for key in _keys_to_try():
+        client = genai.Client(api_key=key, http_options=types.HttpOptions(timeout=TIMEOUT_SECONDS * 1000))
+        for model in _models_to_try():
+            try:
+                response = client.models.generate_content(model=model, contents=contents, config=config_for(model))
+            except errors.ClientError as e:
+                if e.code in (400, 404):  # this model doesn't exist or doesn't accept these settings -> next one
+                    continue
+                if e.code == 429:         # this model's free limit is used up -> try another model, then the backup key
+                    limited = True
+                    continue
+                if e.code in (401, 403):  # this key doesn't work -> try the backup key
+                    bad_key = True
+                    break
+                raise AnalyzerError(f"The AI service returned an error ({e.code}). Please try again.") from e
+            except errors.ServerError:
+                busy = True   # Google is overloaded or too slow right now -> try the next model
                 continue
-            if e.code == 429:
-                raise AnalyzerError("The free AI limit was reached. Wait a minute and try again.") from e
-            if e.code in (401, 403):
-                raise AnalyzerError("The AI service didn't accept our API key. Check GEMINI_API_KEY.") from e
-            raise AnalyzerError(f"The AI service returned an error ({e.code}). Please try again.") from e
-        except errors.ServerError:
-            busy = True   # Google is overloaded or too slow right now -> try the next model
-            continue
-        except Exception:  # network problem or our time limit -> try the next model
-            busy = True
-            continue
-        try:
-            if isinstance(response.parsed, answer_shape):
-                return response.parsed
-            return answer_shape.model_validate_json(response.text)
-        except Exception as e:
-            raise AnalyzerError("The AI gave an answer we couldn't read. Please try again.") from e
+            except Exception:  # network problem or our time limit -> try the next model
+                busy = True
+                continue
+            try:
+                if isinstance(response.parsed, answer_shape):
+                    return response.parsed
+                return answer_shape.model_validate_json(response.text)
+            except Exception as e:
+                raise AnalyzerError("The AI gave an answer we couldn't read. Please try again.") from e
 
+    if limited:
+        raise AnalyzerError("The free AI limit was reached. Wait a minute and try again.")
     if busy:
         raise AnalyzerError("The AI service is very busy right now. Please try again in a minute.")
+    if bad_key:
+        raise AnalyzerError("The AI service didn't accept our API key. Check GEMINI_API_KEY.")
     raise AnalyzerError("No AI model was available. Check GEMINI_MODEL in your settings.")
 
 
