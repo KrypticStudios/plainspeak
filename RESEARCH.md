@@ -32,3 +32,11 @@ Similar hackathon projects: [Waive](https://devpost.com/software/waive), [FairNo
 - **1.23 million** eviction filings in 2025 across the sites Eviction Lab tracks. [Eviction Lab](https://evictionlab.org/ets-report-2025/)
 - In Philadelphia, **54%** of evictions came from default judgments, meaning the tenant didn't show up. [Temple CSJ](https://law.temple.edu/csj/wp-content/uploads/sites/3/2020/07/Reducing-Default-Judgments-in-Philadelphias-Landlord-Tenant-Court.pdf)
 - **15 million** Americans had **$49B** in medical bills on their credit reports. [CFPB](https://www.consumerfinance.gov/archive/newsroom/cfpb-finds-15-million-americans-have-medical-bills-on-their-credit-reports/)
+
+## On-device ("private mode") AI: status as of Nov 2026
+- **Chrome built-in AI (Gemini Nano, Prompt API):** stable for web pages since Chrome 148, but **desktop only**: Android and iOS web pages aren't supported. It needs a GPU with more than 4 GB VRAM or 16 GB RAM, 22 GB free disk, and a one-time model download of about 4 GB. It accepts images and supports a JSON schema, but **only works in en/es/ja/de/fr**. [Prompt API docs](https://developer.chrome.com/docs/ai/prompt-api), [requirements](https://developer.chrome.com/docs/ai/get-started)
+- **Translator API:** desktop Chrome 138+ and Edge. It covers Arabic, Chinese, Hindi, Vietnamese and more. [docs](https://developer.chrome.com/docs/ai/translator-api)
+- **Edge:** Prompt API is in an origin trial and desktop only. **Safari:** no web-page AI API.
+- **WebLLM / Transformers.js (WebGPU):** these work in Chrome Android and iOS 26 Safari, but the models are 250 MB to several GB, phone speed is unproven, and the small models are weaker at summaries and translation.
+- **Tesseract.js OCR:** runs on almost any phone and supports 100+ languages, but it's mediocre on blurry or skewed photos.
+- **Conclusion:** full on-device AI doesn't reach our users' phones yet. The realistic option is a desktop "private mode" demo, with OCR on phones.
