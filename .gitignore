@@ -9,3 +9,8 @@ plainspeak.db
 # Team notes and local tools (not part of the app)
 team/
 .claude/
+
+# Evaluation test letters and pictures stay on this computer
+eval/letters/
+eval/rendered/
+eval/results.json
