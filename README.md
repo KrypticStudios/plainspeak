@@ -74,7 +74,7 @@ tests/                       automated tests
 ## Built during EvoHacks 2.0
 Everything in this repo was written during the event (Nov 21–22, 2026). There was no code before the event. The sample letters are made up: every name, address, phone number and case number in them is fictional.
 
-**AI assistance:** we used Claude (Anthropic) as a coding assistant to help write and review code. The app itself uses Google Gemini at runtime. We can explain every part of the code, and `CODE_GUIDE.md` is our own walkthrough of how it works.
+**AI assistance:** we used Claude (Anthropic) as a coding assistant to help write and review code. The app itself uses Google Gemini at runtime. We can explain every part of the code.
 
 **Libraries used:** Streamlit, google-genai, Pydantic, gTTS, icalendar, textstat, python-dotenv, Pillow, pytest.
 

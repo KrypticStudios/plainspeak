@@ -5,3 +5,7 @@ __pycache__/
 .DS_Store
 .streamlit/secrets.toml
 plainspeak.db
+
+# Team notes and local tools (not part of the app)
+team/
+.claude/

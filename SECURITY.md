@@ -48,5 +48,5 @@ A full account system (login plus an encrypted database) would let people keep l
 - PlainSpeak explains letters. It does not give legal advice.
 
 ## Ideas for the future
-- An on-device "private mode" that reads the letter inside the user's own browser, so nothing leaves their phone. See the on-device notes in the README.
+- An on-device "private mode" that reads the letter inside the user's own browser, so nothing leaves their device. In 2026 this still needs a powerful desktop (Chrome's built-in AI is desktop-only and needs a large one-time download), so it doesn't yet reach the older phones many of our users have.
 - Optional accounts with encrypted storage (sign-in through an auth provider such as MojoAuth).
