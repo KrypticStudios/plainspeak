@@ -4,6 +4,9 @@
 
 Built for **EvoHacks 2.0**, whose theme is *Projects for Social Good*.
 
+### 👉 Try it: **https://plainspeak.streamlit.app**
+No sign-up needed. Click one of the example letters, or paste or photograph a letter of your own. Please use made-up details, see [Privacy](#privacy-and-security).
+
 ## The problem
 Eviction notices, hospital bills and benefits renewals are written in legal, bureaucratic language. People who are still learning English, elderly people and people who struggle with reading often can't tell what the letter is asking for, or how urgent it is. When they miss a deadline, they can lose their home, their food benefits, or end up with a bill in collections, even though help was often offered in the same letter.
 
