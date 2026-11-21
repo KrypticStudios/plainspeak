@@ -7,6 +7,8 @@ import streamlit as st
 
 from plainspeak import calendar_export, checks, demo, history
 from plainspeak.analyzer import AnalyzerError, analyze_letter, has_api_key
+from plainspeak.export import next_deadline, summary_html
+from plainspeak.images import prepare_image
 from plainspeak.schema import LetterAnalysis
 from plainspeak.speech import LANGUAGES, RTL_LANGUAGES, text_to_mp3
 from plainspeak.ui_text import friendly_date, labels
@@ -31,6 +33,7 @@ with st.sidebar:
             if loaded:
                 st.session_state.result, st.session_state.result_lang = loaded
                 st.session_state.saved_id = letter_id
+                st.session_state.pop("audio", None)
         if col_del.button("🗑️", key=f"del-{letter_id}", help="Delete this letter"):
             history.delete(letter_id)
             st.rerun()
@@ -78,84 +81,113 @@ if high_contrast:
     .ps-quote {border-left-color: #ffff00 !important;}
     </style>"""
 st.markdown(css, unsafe_allow_html=True)
+st.markdown("""<style>
+.ps-steps {display: flex; gap: .6rem; margin: .6rem 0 1rem;}
+.ps-step {flex: 1; text-align: center; padding: .8rem .4rem; border-radius: 12px; border: 2px solid #cbd5e1;}
+.ps-step .big {font-size: 1.8rem; display: block;}
+.ps-countdown {font-size: 1.6rem; font-weight: 700;}
+@media (max-width: 640px) {.ps-steps {flex-direction: column;}}
+</style>""", unsafe_allow_html=True)
+
+
+def esc(s: str) -> str:
+    """Make text safe to put inside HTML (so a letter can't inject code into the page)."""
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def show_answer(result: LetterAnalysis, lang_name: str) -> None:
+    """Put an answer on screen and switch to the results view."""
+    st.session_state.result, st.session_state.result_lang = result, lang_name
+    st.session_state.saved_id = None
+    st.session_state.pop("audio", None)
+
 
 # ---------- Header ----------
 st.title("📬 PlainSpeak")
-st.markdown("**Got a confusing letter?** Take a photo. We'll tell you what it means, what to do, and by when, "
+st.markdown("**Got a confusing letter?** We'll tell you what it means, what to do, and by when, "
             "in plain words and in your language.")
-
-if not has_api_key():
-    st.info("Demo mode: no AI key is set up, so you can try the **sample letters** below. "
-            "To read your own letters, add a free Gemini key (see README).", icon="ℹ️")
 
 language = st.selectbox("🌐 Explain my letter in / Idioma / 语言 / Ngôn ngữ / اللغة", list(LANGUAGES),
                         help="The summary and steps will be in this language.")
 
-# ---------- Input ----------
-tab_photo, tab_text, tab_sample = st.tabs(["📷 Photo or file", "⌨️ Paste text", "📄 Try a sample"])
 
-with tab_photo:
-    upload = st.file_uploader("Upload a photo or PDF of your letter", type=["png", "jpg", "jpeg", "webp", "pdf"],
-                              help="Make sure the whole page is in the photo and the words are sharp.")
-    use_camera = st.toggle("Use my camera instead")
-    snap = st.camera_input("Take a photo of your letter") if use_camera else None
-    photo = snap or upload
-    if photo:
-        if photo.type.startswith("image/"):
-            st.image(photo, caption="Your letter", width=300)
-        if st.button("Explain my letter", type="primary", key="go-photo", disabled=not has_api_key()):
-            st.session_state.request = {"file_bytes": photo.getvalue(), "mime_type": photo.type}
+# ---------- Start screen (shown when there is no answer yet) ----------
+def start_screen() -> None:
+    st.markdown("""<div class="ps-steps">
+      <div class="ps-step"><span class="big">📷</span><b>1. Add your letter</b><br>Photo, PDF, or paste the words</div>
+      <div class="ps-step"><span class="big">💬</span><b>2. Read it in plain words</b><br>In your language, or listen</div>
+      <div class="ps-step"><span class="big">✅</span><b>3. Know what to do</b><br>Steps, dates and who to call</div>
+    </div>""", unsafe_allow_html=True)
 
-with tab_text:
-    pasted = st.text_area("Paste the words from your letter", height=200,
-                          placeholder="Copy and paste the text of the letter here…")
-    if st.button("Explain my letter", type="primary", key="go-text", disabled=not has_api_key()):
-        if pasted.strip():
-            st.session_state.request = {"text": pasted}
-        else:
-            st.warning("The box is empty. Paste the text of your letter first.")
+    if not has_api_key():
+        st.info("**Demo mode:** reading your own letters needs a free AI key (see README). "
+                "You can still try the example letters below.", icon="ℹ️")
 
-with tab_sample:
-    st.caption("These are **made-up** letters, so you can see how PlainSpeak works without sharing anything personal.")
-    sample = st.selectbox("Pick a sample letter", list(demo.SAMPLES))
-    with st.expander("Read the original sample letter"):
-        st.text(demo.sample_text(sample))
-    instant = demo.demo_analysis(sample, language)
-    use_instant = instant is not None and (not has_api_key() or st.toggle(
-        "Use the saved demo answer (works offline)", value=True))
-    fake_mistake = use_instant and st.toggle(
-        "🧪 Show how PlainSpeak catches AI mistakes",
-        help="Adds one made-up deadline, the kind of thing an AI might invent, so you can see our check flag it.")
-    if st.button("Explain this sample", type="primary", key="go-sample"):
-        if use_instant:
-            st.session_state.result = demo.with_simulated_mistake(instant) if fake_mistake else instant
-            st.session_state.result_lang = language
-            st.session_state.saved_id = None
-        elif has_api_key():
-            st.session_state.request = {"text": demo.sample_text(sample)}
-        else:
-            langs = ", ".join(demo.demo_languages(sample))
-            st.warning(f"In demo mode this sample is available in: {langs}. Change the language in Settings, "
-                       "or add an AI key to use any language.")
+    tab_photo, tab_text = st.tabs(["📷 Photo or PDF", "⌨️ Paste the words"])
+
+    with tab_photo:
+        uploads = st.file_uploader("Add a photo of each page (or one PDF)", accept_multiple_files=True,
+                                   type=["png", "jpg", "jpeg", "webp", "heic", "pdf"])
+        st.caption("📸 Tips: lay the letter flat, use good light, and get the whole page in the photo.")
+        use_camera = st.toggle("Use my camera instead")
+        snap = st.camera_input("Take a photo of your letter") if use_camera else None
+        pages = ([snap] if snap else []) + list(uploads or [])
+        if pages:
+            images = [p for p in pages if p.type.startswith("image/")]
+            if images:
+                st.image(images, caption=[f"Page {i}" for i in range(1, len(images) + 1)], width=140)
+            if st.button(f"Explain my letter ({len(pages)} page{'s' if len(pages) > 1 else ''})", type="primary",
+                         key="go-photo", disabled=not has_api_key(), use_container_width=True):
+                st.session_state.request = {"files": [prepare_image(p.getvalue(), p.type) for p in pages]}
+                st.rerun()
+
+    with tab_text:
+        pasted = st.text_area("Paste the words from your letter", height=180,
+                              placeholder="Copy and paste the text of the letter here…")
+        if st.button("Explain my letter", type="primary", key="go-text", disabled=not has_api_key(),
+                     use_container_width=True):
+            if pasted.strip():
+                st.session_state.request = {"text": pasted}
+                st.rerun()
+            else:
+                st.warning("The box is empty. Paste the words from your letter first.")
+
+    # One-click examples
+    st.markdown("#### No letter handy? See an example")
+    st.caption("These letters are **made up**, so you can try PlainSpeak without sharing anything personal.")
+    fake_mistake = st.toggle("🧪 Show how PlainSpeak catches AI mistakes",
+                             help="Adds one made-up deadline, the kind of thing an AI might invent, "
+                                  "so you can see our check flag it.")
+    cols = st.columns(len(demo.SAMPLES))
+    for col, (name, icon) in zip(cols, [("Eviction notice (rent)", "🏠"), ("Food benefits renewal", "🍎"),
+                                        ("Hospital bill", "🏥")]):
+        if col.button(f"{icon} {name}", key=f"ex-{name}", use_container_width=True):
+            saved = demo.demo_analysis(name, language)
+            if saved is None and has_api_key():
+                st.session_state.request = {"text": demo.sample_text(name)}   # ask the AI live
+                st.rerun()
+            else:
+                if saved is None:  # no key and no saved answer in this language -> fall back to English
+                    saved, lang_shown = demo.demo_analysis(name, "English"), "English"
+                    st.session_state.notice = (f"This example is saved in English only. "
+                                               f"Add an AI key to see it in {language}.")
+                else:
+                    lang_shown = language
+                show_answer(demo.with_simulated_mistake(saved) if fake_mistake else saved, lang_shown)
+                st.rerun()
+
 
 # ---------- Run the AI ----------
 if "request" in st.session_state:
     req = st.session_state.pop("request")
     with st.spinner("Reading your letter… this takes about 10–20 seconds."):
         try:
-            st.session_state.result = analyze_letter(language, **req)
-            st.session_state.result_lang = language
-            st.session_state.saved_id = None
+            show_answer(analyze_letter(language, **req), language)
         except AnalyzerError as e:
             st.error(str(e), icon="🚫")
 
 
-# ---------- Show the result ----------
-def esc(s: str) -> str:
-    """Make text safe to put inside HTML (so a letter can't inject code into the page)."""
-    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-
-
+# ---------- Results screen ----------
 def quote_html(quote: str, letter: str, t: dict) -> str:
     """The exact words from the letter, with a check mark if we found them in the letter."""
     if checks.quote_found(quote, letter):
@@ -176,18 +208,42 @@ def show_result(a: LetterAnalysis, lang_name: str) -> None:
     def heading(icon: str, text: str) -> None:
         st.markdown(f'<h3 dir="{direction}">{icon} {esc(text)}</h3>', unsafe_allow_html=True)
 
-    st.divider()
+    if st.button(f"⬅️ {t['start_over']}", key="start-over"):
+        for key in ("result", "result_lang", "saved_id", "audio"):
+            st.session_state.pop(key, None)
+        st.rerun()
+    if "notice" in st.session_state:
+        st.info(st.session_state.pop("notice"), icon="ℹ️")
+
     st.markdown(f'<h2 dir="{direction}">📄 {esc(a.document_type)}</h2>', unsafe_allow_html=True)
     st.caption(f"{t['from']}: {a.sender}")
 
+    # --- At a glance: urgency, countdown, first step ---
     icon = {"high": f"🔴 {t['urgent']}", "medium": f"🟠 {t['soon']}", "low": f"🟢 {t['not_urgent']}"}[a.urgency]
-    card(f"<b>{icon}</b> — {esc(a.urgency_reason)}", f"ps-{a.urgency}")
+    glance = f"<b>{icon}</b> — {esc(a.urgency_reason)}"
+    nxt = next_deadline(a)
+    if nxt:
+        days, d = nxt
+        if days > 0:
+            count = t["days_left"].format(n=days)
+        elif days == 0:
+            count = t["due_today"]
+        else:
+            count = t["passed"]
+        when = friendly_date(d.date, code)
+        glance += (f'<hr style="margin:.6rem 0"><span class="ps-countdown">⏰ {esc(count)}</span><br>'
+                   f'{esc(t["next_deadline"])}: <b>{esc(when)}</b> — {esc(d.what)}')
+    if a.actions:
+        glance += f'<hr style="margin:.6rem 0">👉 <b>{esc(t["first_step"])}:</b> {esc(a.actions[0].step)}'
+    card(glance, f"ps-{a.urgency}")
 
-    # Summary + read aloud
+    # --- Summary + read aloud ---
     heading("💬", t["means"])
     card(f'<span style="font-size:1.1em">{esc(a.summary)}</span>')
     if st.button(f"🔊 {t['read_aloud']}", key="tts"):
-        audio = text_to_mp3(a.summary, code)
+        # Read the summary, then the steps, so someone who can't read at all still gets everything.
+        script = a.summary + " " + " ".join(f"{i}. {s.step}" for i, s in enumerate(a.actions, 1))
+        audio = text_to_mp3(script, code)
         if audio:
             st.session_state.audio = (a.summary, audio)  # keep it so the player doesn't vanish on the next click
         else:
@@ -200,12 +256,7 @@ def show_result(a: LetterAnalysis, lang_name: str) -> None:
     if before and after and code == "en":
         st.caption(f"📉 Reading level: the letter needs grade **{before:.0f}**; this summary needs grade **{after:.0f}**.")
 
-    if a.confidence != "high" or a.unclear_points:
-        sure = {"high": "", "medium": " (?)", "low": " (??)"}[a.confidence]
-        heading("❓", t["not_sure"] + sure)
-        card("<br>".join(f"• {esc(p)}" for p in a.unclear_points) or "—")
-
-    # Deadlines
+    # --- Deadlines ---
     if a.deadlines:
         heading("📅", t["dates"])
         verified = []
@@ -223,20 +274,20 @@ def show_result(a: LetterAnalysis, lang_name: str) -> None:
                                mime="text/calendar",
                                help="Opens in Google, Apple or Outlook Calendar, with a reminder 2 days before.")
 
-    # Steps
+    # --- Steps ---
     if a.actions:
         heading("✅", t["todo"])
         for i, s in enumerate(a.actions):
             st.checkbox(s.step, key=f"step-{i}")
             st.markdown(quote_html(s.source_quote, a.original_text, t), unsafe_allow_html=True)
 
-    # Money
+    # --- Money ---
     if a.money:
         heading("💵", t["money"])
         for m in a.money:
             card(f"<b>{esc(m.amount)}</b> — {esc(m.what)}{quote_html(m.source_quote, a.original_text, t)}")
 
-    # Contacts
+    # --- Contacts ---
     if a.contacts:
         heading("☎️", t["contact"])
         for c in a.contacts:
@@ -254,21 +305,37 @@ def show_result(a: LetterAnalysis, lang_name: str) -> None:
         heading("🛡️", t["rights"])
         card("<br>".join(f"• {esc(r)}" for r in a.rights))
 
+    if a.confidence != "high" or a.unclear_points:
+        sure = {"high": "", "medium": " (?)", "low": " (??)"}[a.confidence]
+        heading("❓", t["not_sure"] + sure)
+        card("<br>".join(f"• {esc(p)}" for p in a.unclear_points) or "—")
+
+    # --- Human help ---
     if a.needs_human_help:
         st.warning(f"**{t['talk_person']}** {a.help_reason}", icon="🧑‍⚖️")
     else:
         st.success(a.help_reason, icon="👍")
+    heading("🤝", t["free_help"])
+    card('📞 <b><a href="tel:211">211</a></b> — free, confidential help finding local services (housing, food, bills), '
+         '24/7, in many languages · <a href="https://www.211.org" target="_blank">211.org</a><br>'
+         '⚖️ <b><a href="https://www.lawhelp.org" target="_blank">LawHelp.org</a></b> — find free legal aid in your state')
+
+    # --- Keep it ---
+    col_print, col_save = st.columns(2)
+    col_print.download_button(f"🖨️ {t['print']}", summary_html(a, code), file_name="plainspeak-summary.html",
+                              mime="text/html", use_container_width=True,
+                              help="A simple page you can print, or send to someone who helps you.")
+    if st.session_state.get("saved_id"):
+        col_save.caption(f"✓ {t['saved']}")
+    elif col_save.button(f"💾 {t['save']}", use_container_width=True):
+        st.session_state.saved_id = history.save(a, lang_name)
+        st.rerun()
 
     with st.expander(t["show_original"]):
         st.text(a.original_text)
 
-    # Save
-    if st.session_state.get("saved_id"):
-        st.caption(f"✓ {t['saved']}")
-    elif st.button(f"💾 {t['save']}"):
-        st.session_state.saved_id = history.save(a, lang_name)
-        st.rerun()
-
 
 if "result" in st.session_state:
     show_result(st.session_state.result, st.session_state.get("result_lang", language))
+else:
+    start_screen()

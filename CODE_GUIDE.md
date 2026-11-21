@@ -53,6 +53,9 @@ Other details worth knowing:
 | `calendar_export.py` | Makes a `.ics` file | `.ics` is the standard calendar format. Each deadline becomes an all-day event with a reminder 2 days before. |
 | `speech.py` | Read-aloud | Sends the summary to Google Text-to-Speech and gets an MP3 back. |
 | `history.py` | My letters | Saves answers in a SQLite database file on the computer. |
+| `export.py` | Countdown and printable page | Works out how many days are left until the next *verified* deadline, and builds a simple HTML page to print. |
+| `images.py` | Prepares photos | Turns sideways phone photos the right way up and shrinks them so the AI is faster. |
+| `ui_text.py` | Translations | Every heading and button on the results page in 11 languages, plus dates written the local way. |
 | `demo.py` | Sample answers | Answers we wrote ahead of time for the sample letters, so the demo works with no internet. |
 | `tests/test_core.py` | Automated tests | Checks things like "a made-up quote gets caught" and "the calendar file has the right dates". |
 

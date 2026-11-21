@@ -47,12 +47,15 @@ def _models_to_try() -> list[str]:
     return models + [m for m in DEFAULT_MODELS if m != preferred]
 
 
-def analyze_letter(language: str, text: str = "", file_bytes: bytes | None = None,
-                   mime_type: str = "") -> LetterAnalysis:
-    """Analyze a letter given as pasted text or as an uploaded image/PDF."""
+def analyze_letter(language: str, text: str = "", files: list[tuple[bytes, str]] | None = None) -> LetterAnalysis:
+    """Analyze a letter given as pasted text and/or photos/PDFs.
+
+    `files` is a list of (file_bytes, mime_type), one per page, in order.
+    """
+    files = files or []
     if not has_api_key():
         raise AnalyzerError("No API key found. Add GEMINI_API_KEY to your .env file, or try a sample letter.")
-    if not text.strip() and not file_bytes:
+    if not text.strip() and not files:
         raise AnalyzerError("Please upload a photo of your letter or paste its text.")
 
     # Imported here so the app (and tests) still load without the library configured.
@@ -62,8 +65,10 @@ def analyze_letter(language: str, text: str = "", file_bytes: bytes | None = Non
     client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
     contents: list = [f"Explain this letter. The reader's language is: {language}."]
-    if file_bytes:
-        contents.append(types.Part.from_bytes(data=file_bytes, mime_type=mime_type))
+    for page, (data, mime) in enumerate(files, start=1):
+        if len(files) > 1:
+            contents.append(f"Page {page}:")
+        contents.append(types.Part.from_bytes(data=data, mime_type=mime))
     if text.strip():
         contents.append("Letter text:\n" + text)
 

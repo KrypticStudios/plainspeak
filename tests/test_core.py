@@ -74,3 +74,41 @@ def test_simulated_mistake_is_flagged():
     a = demo.with_simulated_mistake(demo.demo_analysis("Eviction notice (rent)", "English"))
     assert not checks.quote_found(a.deadlines[0].source_quote, a.original_text)
     assert all(checks.quote_found(d.source_quote, a.original_text) for d in a.deadlines[1:])
+
+
+def test_countdown_and_next_deadline():
+    from datetime import date
+    from plainspeak.export import days_left, next_deadline
+    a = demo.demo_analysis("Food benefits renewal", "English")
+    days, d = next_deadline(a, today=date(2026, 11, 21))
+    assert d.date == "2026-12-09" and days == 18
+    days, d = next_deadline(a, today=date(2026, 12, 10))   # interview passed -> next is the form
+    assert d.date == "2026-12-15"
+    assert days_left("nope") is None
+
+
+def test_fake_deadline_never_becomes_next_deadline():
+    from datetime import date
+    from plainspeak.export import next_deadline
+    a = demo.with_simulated_mistake(demo.demo_analysis("Eviction notice (rent)", "English"))
+    _, d = next_deadline(a, today=date(2026, 11, 21))
+    assert d.date == "2026-12-04"
+
+
+def test_printable_summary_is_escaped_and_translated():
+    from plainspeak.export import summary_html
+    a = demo.demo_analysis("Eviction notice (rent)", "Español (Spanish)")
+    page = summary_html(a.model_copy(update={"sender": "<script>x</script>"}), "es")
+    assert "Qué hacer" in page and "<script>x" not in page
+
+
+def test_photo_is_rotated_and_shrunk():
+    from io import BytesIO
+    from PIL import Image
+    from plainspeak.images import prepare_image
+    buf = BytesIO()
+    Image.new("RGBA", (4000, 3000), "white").save(buf, format="PNG")
+    data, mime = prepare_image(buf.getvalue(), "image/png")
+    img = Image.open(BytesIO(data))
+    assert mime == "image/jpeg" and max(img.size) == 2000
+    assert prepare_image(b"%PDF-1.4", "application/pdf") == (b"%PDF-1.4", "application/pdf")

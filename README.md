@@ -8,11 +8,13 @@ Built for **EvoHacks 2.0**, whose theme is *Projects for Social Good*.
 Eviction notices, hospital bills and benefits renewals are written in legal, bureaucratic language. People who are still learning English, elderly people and people who struggle with reading often can't tell what the letter is asking for, or how urgent it is. When they miss a deadline, they can lose their home, their food benefits, or end up with a bill in collections, even though help was often offered in the same letter.
 
 ## What PlainSpeak does
-1. **Read**: you upload a photo or PDF of the letter, or paste its text.
+1. **Read**: you upload a photo of each page, a PDF, or the pasted text. Photos are straightened and shrunk automatically.
 2. **Explain**: the app gives a 2–4 sentence summary at a 5th-grade reading level and tells you how urgent the letter is.
 3. **Act**: it lists the deadlines, a checklist of what to do, the money involved, and who to call (phone numbers you can tap).
 4. **Your language**: the explanation comes in 11 languages, with read-aloud. Right-to-left text is supported for Arabic.
-5. **Remember**: you can add the deadlines to Google, Apple or Outlook Calendar with a reminder 2 days before, and save letters to *My letters*.
+5. **At a glance**: the top of the results shows how urgent the letter is, a countdown (e.g. "18 days left") to the next deadline, and the first thing to do.
+6. **Remember**: you can add the deadlines to Google, Apple or Outlook Calendar with a reminder 2 days before, save letters to *My letters*, or download a summary page to print or send to someone who helps you.
+7. **Get help**: every answer links to 211 (free local help) and LawHelp.org (free legal aid).
 
 ### Why you can trust it
 AI can make things up. PlainSpeak protects against that:
@@ -59,6 +61,9 @@ plainspeak/calendar_export.py  deadlines -> .ics calendar file
 plainspeak/speech.py         read-aloud and language list
 plainspeak/history.py        My letters (SQLite)
 plainspeak/demo.py           saved answers for the sample letters
+plainspeak/export.py         countdown and printable summary page
+plainspeak/images.py         straightens and shrinks phone photos
+plainspeak/ui_text.py        labels and dates in 11 languages
 samples/                     made-up letters for testing and the demo
 tests/                       automated tests
 ```

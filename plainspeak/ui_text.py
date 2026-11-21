@@ -68,9 +68,6 @@ TEXT = {
 }
 
 
-def labels(lang_code: str) -> dict[str, str]:
-    """All labels for a language as a dictionary, e.g. labels('es')['todo'] -> 'Qué hacer'."""
-    return dict(zip(KEYS, TEXT.get(lang_code, TEXT["en"])))
 
 
 def friendly_date(value: str, lang_code: str) -> str | None:
@@ -80,3 +77,39 @@ def friendly_date(value: str, lang_code: str) -> str | None:
     except ValueError:
         return None
     return format_date(d, format="full", locale=lang_code.replace("-", "_"))
+
+
+# Labels added later. {n} is replaced with a number of days.
+EXTRA_KEYS = ["days_left", "due_today", "passed", "next_deadline", "print", "start_over", "free_help", "first_step"]
+EXTRA = {
+    "en": ["{n} days left", "Due TODAY", "This date has passed. Call them now.", "Next deadline",
+           "Save or print this summary", "Explain another letter", "Free help near you", "Do this first"],
+    "es": ["Quedan {n} días", "Vence HOY", "Esta fecha ya pasó. Llame ahora.", "Próxima fecha límite",
+           "Guardar o imprimir este resumen", "Explicar otra carta", "Ayuda gratis cerca de usted", "Haga esto primero"],
+    "zh-CN": ["还剩 {n} 天", "今天截止", "这个日期已经过了，请马上打电话。", "下一个截止日期",
+              "保存或打印这份摘要", "解释另一封信", "您附近的免费帮助", "先做这一步"],
+    "vi": ["Còn {n} ngày", "Hạn chót HÔM NAY", "Ngày này đã qua. Hãy gọi ngay.", "Hạn chót tiếp theo",
+           "Lưu hoặc in bản tóm tắt này", "Giải thích lá thư khác", "Trợ giúp miễn phí gần bạn", "Làm việc này trước"],
+    "ar": ["باقي {n} يوم", "الموعد اليوم", "هذا التاريخ قد مضى. اتصل بهم الآن.", "الموعد النهائي التالي",
+           "احفظ أو اطبع هذا الملخص", "اشرح رسالة أخرى", "مساعدة مجانية قريبة منك", "افعل هذا أولاً"],
+    "hi": ["{n} दिन बाकी", "आज आखिरी दिन", "यह तारीख निकल गई है। अभी फ़ोन करें।", "अगली आखिरी तारीख",
+           "यह सारांश सहेजें या प्रिंट करें", "दूसरा पत्र समझाएँ", "आपके पास मुफ़्त मदद", "पहले यह करें"],
+    "tl": ["{n} araw na lang", "Ngayon ang huling araw", "Lumipas na ang petsang ito. Tumawag na ngayon.", "Susunod na deadline",
+           "I-save o i-print ang buod na ito", "Ipaliwanag ang ibang sulat", "Libreng tulong malapit sa iyo", "Gawin muna ito"],
+    "fr": ["Plus que {n} jours", "Échéance AUJOURD'HUI", "Cette date est passée. Appelez maintenant.", "Prochaine échéance",
+           "Enregistrer ou imprimer ce résumé", "Expliquer une autre lettre", "Aide gratuite près de chez vous", "Faites d'abord ceci"],
+    "ko": ["{n}일 남음", "오늘 마감", "이 날짜는 지났습니다. 지금 전화하세요.", "다음 마감일",
+           "이 요약 저장 또는 인쇄", "다른 편지 설명하기", "가까운 무료 도움", "먼저 이것부터 하세요"],
+    "ru": ["Осталось дней: {n}", "Срок СЕГОДНЯ", "Эта дата прошла. Позвоните сейчас.", "Ближайший срок",
+           "Сохранить или распечатать", "Объяснить другое письмо", "Бесплатная помощь рядом", "Сначала сделайте это"],
+    "pt": ["Faltam {n} dias", "Vence HOJE", "Esta data já passou. Ligue agora.", "Próximo prazo",
+           "Salvar ou imprimir este resumo", "Explicar outra carta", "Ajuda gratuita perto de você", "Faça isto primeiro"],
+}
+
+
+
+def labels(lang_code: str) -> dict[str, str]:
+    """All labels for a language as a dictionary, e.g. labels('es')['todo'] -> 'Qué hacer'."""
+    result = dict(zip(KEYS, TEXT.get(lang_code, TEXT["en"])))
+    result.update(zip(EXTRA_KEYS, EXTRA.get(lang_code, EXTRA["en"])))
+    return result
