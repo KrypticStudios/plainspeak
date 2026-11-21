@@ -17,7 +17,7 @@ import plainspeak.schema  # noqa: E402  (loaded first: the other files use it)
 # other files (plainspeak/*.py). That once crashed the live site. So: if any of our files changed on
 # disk since it was loaded, reload it. This costs nothing when nothing has changed.
 for _name in ["schema", "checks", "ui_text", "calendar_export", "export", "images", "privacy", "speech",
-              "history", "demo", "analyzer", "monitor"]:
+              "history", "demo", "analyzer", "monitor", "ui_start"]:
     _mod = importlib.import_module(f"plainspeak.{_name}")
     _mtime = os.path.getmtime(_mod.__file__)
     if getattr(_mod, "_loaded_mtime", None) != _mtime:   # changed, or an old copy from before this check
@@ -31,6 +31,7 @@ from plainspeak.images import prepare_image
 from plainspeak.privacy import MAX_PAGES, MAX_TEXT_CHARS, RateLimiter, check_upload, redact
 from plainspeak.schema import LetterAnalysis
 from plainspeak.speech import LANGUAGES, RTL_LANGUAGES, text_to_mp3
+from plainspeak.ui_start import ui
 from plainspeak.ui_text import GENERIC_QUESTIONS, friendly_date, labels
 
 st.set_page_config(page_title="PlainSpeak", page_icon="📬", layout="centered")
@@ -78,12 +79,11 @@ def ai_allowed() -> bool:
     per_visitor, whole_site = limiters()
     if not per_visitor.allow(st.session_state.visitor):
         monitor.record("rate_limited")
-        st.warning("You've asked a lot in a short time. Please wait a few minutes and try again.", icon="⏳")
+        st.warning(U["slow_down"], icon="⏳")
         return False
     if not whole_site.allow("site"):
         monitor.record("ai_limit")
-        st.warning("PlainSpeak has reached its free daily limit. Please try again tomorrow, "
-                   "or call 211 for help with your letter.", icon="⏳")
+        st.warning(U["daily_limit"], icon="⏳")
         return False
     return True
 
@@ -94,18 +94,22 @@ def ai_allowed() -> bool:
 LINK = {k: st.query_params.get(k, "") for k in ("example", "lang", "mistake", "contrast", "bigtext")}
 LINK_EXAMPLES = {"eviction": "Eviction notice (rent)", "benefits": "Food benefits renewal", "hospital": "Hospital bill"}
 
+# The screen's own words follow the chosen language. The sidebar is drawn before the language box,
+# so read the visitor's last choice (or the link's) here.
+_chosen = st.session_state.get("language")
+U = ui(LANGUAGES[_chosen] if _chosen in LANGUAGES else (LINK["lang"] or "en"))
+
 # ---------- Sidebar: language, accessibility, history ----------
 with st.sidebar:
-    st.header("⚙️ Display")
-    big_text = st.toggle("Larger text", value=LINK["bigtext"] == "1")
-    high_contrast = st.toggle("High contrast", value=LINK["contrast"] == "1")
+    st.header(U["display"])
+    big_text = st.toggle(U["larger_text"], value=LINK["bigtext"] == "1")
+    high_contrast = st.toggle(U["high_contrast"], value=LINK["contrast"] == "1")
 
     st.divider()
-    st.header("🗂️ My letters")
+    st.header(U["my_letters"])
     recent = store.list_recent()
     if not recent:
-        st.caption("Letters you save show up here. Only you can see them."
-                   + ("" if LOCAL_MODE else " They're deleted when you close this page."))
+        st.caption(U["letters_note"] + ("" if LOCAL_MODE else " " + U["letters_note_session"]))
     for letter_id, saved_at, lang, doc_type in recent:
         col_open, col_del = st.columns([4, 1])
         if col_open.button(f"{doc_type} · {saved_at[:10]}", key=f"open-{letter_id}", use_container_width=True):
@@ -118,16 +122,15 @@ with st.sidebar:
         if col_del.button("🗑️", key=f"del-{letter_id}", help="Delete this letter"):
             store.delete(letter_id)
             st.rerun()
-    if recent and st.button("🗑️ Delete all my letters", use_container_width=True):
+    if recent and st.button(U["delete_all"], use_container_width=True):
         store.delete_all()
         for key in ("result", "result_lang", "saved_id", "audio", "qa"):
             st.session_state.pop(key, None)
         st.rerun()
 
     st.divider()
-    st.caption("⚠️ PlainSpeak explains letters. It is **not** legal or medical advice. "
-               "For serious matters, talk to a lawyer, caseworker, or the office that sent the letter.")
-    with st.expander("🔒 Privacy"):
+    st.caption(U["disclaimer"])
+    with st.expander(U["privacy"]):
         st.markdown(PRIVACY_NOTE)
 
 
@@ -204,13 +207,13 @@ def show_answer(result: LetterAnalysis, lang_name: str) -> None:
 
 # ---------- Header ----------
 st.title("📬 PlainSpeak")
-st.markdown("**Got a confusing letter?** We'll tell you what it means, what to do, and by when, "
-            "in plain words and in your language.")
+st.markdown(U["tagline"])
 
 _codes = list(LANGUAGES.values())
 language = st.selectbox("🌐 Explain my letter in / Idioma / 语言 / Ngôn ngữ / اللغة", list(LANGUAGES),
-                        index=_codes.index(LINK["lang"]) if LINK["lang"] in _codes else 0,
+                        index=_codes.index(LINK["lang"]) if LINK["lang"] in _codes else 0, key="language",
                         help="The summary and steps will be in this language.")
+U = ui(LANGUAGES[language])   # the language box may have just changed
 
 # Open the example from a shareable link (only once, so "Explain another letter" still works).
 if LINK["example"] in LINK_EXAMPLES and not st.session_state.get("link_opened"):
@@ -219,32 +222,30 @@ if LINK["example"] in LINK_EXAMPLES and not st.session_state.get("link_opened"):
     _saved = demo.demo_analysis(_name, language)
     if _saved is None:   # no saved answer in this language: show English and say so
         _saved, language = demo.demo_analysis(_name, "English"), "English"
-        st.session_state.notice = "This example is saved in English only."
+        st.session_state.notice = U["english_only"]
     show_answer(demo.with_simulated_mistake(_saved) if LINK["mistake"] == "1" else _saved, language)
 
 
 # ---------- Start screen (shown when there is no answer yet) ----------
 def start_screen() -> None:
-    st.markdown("""<div class="ps-steps">
-      <div class="ps-step"><span class="big">📷</span><b>1. Add your letter</b><br>Photo, PDF, or paste the words</div>
-      <div class="ps-step"><span class="big">💬</span><b>2. Read it in plain words</b><br>In your language, or listen</div>
-      <div class="ps-step"><span class="big">✅</span><b>3. Know what to do</b><br>Steps, dates and who to call</div>
+    rtl = ' dir="rtl"' if LANGUAGES[language] in RTL_LANGUAGES else ""
+    st.markdown(f"""<div class="ps-steps"{rtl}>
+      <div class="ps-step"><span class="big">📷</span><b>{esc(U["step1t"])}</b><br>{esc(U["step1d"])}</div>
+      <div class="ps-step"><span class="big">💬</span><b>{esc(U["step2t"])}</b><br>{esc(U["step2d"])}</div>
+      <div class="ps-step"><span class="big">✅</span><b>{esc(U["step3t"])}</b><br>{esc(U["step3d"])}</div>
     </div>""", unsafe_allow_html=True)
 
     if not has_api_key():
-        st.info("**Demo mode:** reading your own letters needs a free AI key (see README). "
-                "You can still try the example letters below.", icon="ℹ️")
+        st.info(U["demo_mode"], icon="ℹ️")
 
-    tab_photo, tab_text = st.tabs(["📷 Photo or PDF", "⌨️ Paste the words"])
+    tab_photo, tab_text = st.tabs([U["tab_photo"], U["tab_paste"]])
 
     with tab_photo:
-        uploads = st.file_uploader("Add a photo of each page (or one PDF)", accept_multiple_files=True,
+        uploads = st.file_uploader(U["upload_label"], accept_multiple_files=True,
                                    type=["png", "jpg", "jpeg", "webp", "pdf"])
-        st.caption("📸 Tips: lay the letter flat, use good light, and get the whole page in the photo. "
-                   "🔒 Cover ID numbers (like a Social Security or account number) with a finger or paper. "
-                   "PlainSpeak doesn't need them.")
-        use_camera = st.toggle("Use my camera instead")
-        snap = st.camera_input("Take a photo of your letter") if use_camera else None
+        st.caption(U["photo_tips"])
+        use_camera = st.toggle(U["use_camera"])
+        snap = st.camera_input(U["camera_label"]) if use_camera else None
         pages = ([snap] if snap else []) + list(uploads or [])
         if pages:
             # Check every file FIRST. Only real, readable pictures get a preview (a broken file must
@@ -253,7 +254,7 @@ def start_screen() -> None:
             problems = [f"{p.name}: {errors[p.file_id]}" for p in pages if errors[p.file_id]]
             images = [p for p in pages if p.type.startswith("image/") and not errors[p.file_id]]
             if images:
-                st.image(images, caption=[f"Page {i}" for i in range(1, len(images) + 1)], width=140)
+                st.image(images, caption=[f"{U['page']} {i}" for i in range(1, len(images) + 1)], width=140)
             if len(pages) > MAX_PAGES:
                 problems.append(f"Please add at most {MAX_PAGES} pages at a time.")
             for problem in problems:
@@ -263,38 +264,38 @@ def start_screen() -> None:
                 if p.file_id not in reported and errors[p.file_id]:
                     reported.add(p.file_id)
                     monitor.record("bad_upload")
-            if st.button(f"Explain my letter ({len(pages)} page{'s' if len(pages) > 1 else ''})", type="primary",
+            if st.button(f"{U['explain']} ({len(pages)} {U['page'] if len(pages) == 1 else U['pages']})", type="primary",
                          key="go-photo", disabled=not has_api_key() or bool(problems), use_container_width=True):
                 st.session_state.request = {"files": [prepare_image(p.getvalue(), p.type) for p in pages]}
                 st.rerun()
 
     with tab_text:
-        pasted = st.text_area("Paste the words from your letter", height=180, max_chars=MAX_TEXT_CHARS,
-                              placeholder="Copy and paste the text of the letter here…")
-        st.caption("🔒 ID numbers (Social Security, card, account and case numbers) are hidden automatically "
-                   "before your letter is sent to the AI.")
-        if st.button("Explain my letter", type="primary", key="go-text", disabled=not has_api_key(),
+        pasted = st.text_area(U["paste_label"], height=180, max_chars=MAX_TEXT_CHARS,
+                              placeholder=U["paste_placeholder"])
+        st.caption(U["ids_note"])
+        if st.button(U["explain"], type="primary", key="go-text", disabled=not has_api_key(),
                      use_container_width=True):
             if pasted.strip():
                 clean, hidden = redact(pasted)
                 if hidden:
                     monitor.record("ids_hidden")
-                    st.session_state.notice = f"🔒 We hid {hidden} ID number(s) before sending your letter to the AI."
+                    st.session_state.notice = U["ids_hidden"].format(n=hidden)
                 st.session_state.request = {"text": clean}
                 st.rerun()
             else:
-                st.warning("The box is empty. Paste the words from your letter first.")
+                st.warning(U["empty_box"])
 
     # One-click examples
-    st.markdown("#### No letter handy? See an example")
-    st.caption("These letters are **made up**, so you can try PlainSpeak without sharing anything personal.")
-    fake_mistake = st.toggle("🧪 Show how PlainSpeak catches AI mistakes",
+    st.markdown(f"#### {U['examples_title']}")
+    st.caption(U["examples_caption"])
+    fake_mistake = st.toggle(U["mistake_toggle"],
                              help="Adds one made-up deadline, the kind of thing an AI might invent, "
                                   "so you can see our check flag it.")
     cols = st.columns(len(demo.SAMPLES))
-    for col, (name, icon) in zip(cols, [("Eviction notice (rent)", "🏠"), ("Food benefits renewal", "🍎"),
-                                        ("Hospital bill", "🏥")]):
-        if col.button(f"{icon} {name}", key=f"ex-{name}", use_container_width=True):
+    for col, (name, icon, short) in zip(cols, [("Eviction notice (rent)", "🏠", "eviction"),
+                                               ("Food benefits renewal", "🍎", "benefits"),
+                                               ("Hospital bill", "🏥", "hospital")]):
+        if col.button(f"{icon} {U['ex_' + short]}", key=f"ex-{name}", use_container_width=True):
             saved = demo.demo_analysis(name, language)
             if saved is None and has_api_key():
                 st.session_state.request = {"text": demo.sample_text(name)}   # ask the AI live
@@ -302,8 +303,7 @@ def start_screen() -> None:
             else:
                 if saved is None:  # no key and no saved answer in this language -> fall back to English
                     saved, lang_shown = demo.demo_analysis(name, "English"), "English"
-                    st.session_state.notice = (f"This example is saved in English only. "
-                                               f"Add an AI key to see it in {language}.")
+                    st.session_state.notice = U["english_only"]
                 else:
                     lang_shown = language
                 show_answer(demo.with_simulated_mistake(saved) if fake_mistake else saved, lang_shown)
@@ -313,7 +313,7 @@ def start_screen() -> None:
 # ---------- Run the AI ----------
 req = st.session_state.pop("request", None)   # take it out first, so a blocked request isn't retried forever
 if req is not None and ai_allowed():
-    with st.spinner("Reading your letter… this usually takes a few seconds."):
+    with st.spinner(U["spinner"]):
         try:
             show_answer(analyze_letter(language, **req), language)
             monitor.record("letter_ok")
@@ -384,7 +384,7 @@ def show_result(a: LetterAnalysis, lang_name: str) -> None:
             st.session_state.audio = (a.summary, audio)  # keep it so the player doesn't vanish on the next click
         else:
             monitor.record("tts_failed")
-            st.warning("Read-aloud isn't working right now. Please try again in a moment.")
+            st.warning(U["tts_failed"])
     saved_audio = st.session_state.get("audio")
     if saved_audio and saved_audio[0] == a.summary:
         st.audio(saved_audio[1], format="audio/mp3")
@@ -461,7 +461,7 @@ def show_result(a: LetterAnalysis, lang_name: str) -> None:
         if st.form_submit_button(t["ask_button"], disabled=not has_api_key()) and typed:
             asked = typed
     if not has_api_key():
-        st.caption("Typing your own question needs an AI key. Try a common question above.")
+        st.caption(U["type_needs_key"])
     if asked:
         answer = demo.demo_answer(a, asked)
         if answer is None:

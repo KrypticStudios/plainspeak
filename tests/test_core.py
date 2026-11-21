@@ -237,3 +237,12 @@ def test_broken_and_giant_pictures_are_refused():
     giant = BytesIO()
     Image.new("1", (30_000, 30_000)).save(giant, format="PNG")        # small file, huge picture
     assert "too large" in check_upload(giant.getvalue(), "image/png")
+
+
+def test_start_screen_text_complete_in_every_language():
+    from plainspeak.speech import LANGUAGES
+    from plainspeak.ui_start import UI, ui
+    for code in LANGUAGES.values():
+        missing = set(UI["en"]) - set(UI[code])
+        assert not missing, (code, missing)
+        assert "{n}" in ui(code)["ids_hidden"]
