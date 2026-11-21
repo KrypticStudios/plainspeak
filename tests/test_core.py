@@ -133,3 +133,47 @@ def test_demo_question_quotes_are_in_the_letter():
                 for quote in ans.source_quotes:
                     assert checks.quote_found(quote, a.original_text), quote
     assert demo.suggested_questions(demo.demo_analysis("Hospital bill", "English"))
+
+
+def test_redaction_hides_ids_but_keeps_what_we_need():
+    from plainspeak.privacy import HIDDEN, redact
+    text = ("SSN 123-45-6789, card 4111 1111 1111 1111, Account Number: RGH-123456, Case #00-1234567. "
+            "Call (555) 014-2290. Pay $1,450.00 by December 4, 2026. A caseworker from Customer Service will call.")
+    out, n = redact(text)
+    assert n == 4
+    for secret in ("123-45-6789", "4111", "RGH-123456", "00-1234567"):
+        assert secret not in out
+    for keep in ("(555) 014-2290", "$1,450.00", "December 4, 2026", "caseworker", "Customer Service"):
+        assert keep in out
+    assert out.count(HIDDEN) == 4
+
+
+def test_rate_limiter():
+    from plainspeak.privacy import RateLimiter
+    rl = RateLimiter(limit=2, window=60)
+    assert rl.allow("a", now=0) and rl.allow("a", now=1)
+    assert not rl.allow("a", now=2)          # third try within a minute is blocked
+    assert rl.allow("b", now=2)              # other visitors aren't affected
+    assert rl.allow("a", now=62)             # allowed again after the window
+
+
+def test_upload_checks():
+    from io import BytesIO
+    from PIL import Image
+    from plainspeak.privacy import check_upload
+    buf = BytesIO()
+    Image.new("RGB", (10, 10)).save(buf, format="PNG")
+    assert check_upload(buf.getvalue(), "image/png") is None
+    assert check_upload(b"%PDF-1.7 ...", "application/pdf") is None
+    assert check_upload(b"<script>evil</script>", "image/png")
+    assert check_upload(b"MZ\x90\x00", "application/pdf")
+    assert check_upload(b"x" * (11 * 1024 * 1024), "image/png")
+
+
+def test_session_store_is_per_visitor_and_deletable():
+    a = demo.demo_analysis("Hospital bill", "English")
+    alice, bob = history.SessionStore({}), history.SessionStore({})
+    i = alice.save(a, "English")
+    assert alice.load(i) == (a, "English") and bob.list_recent() == []
+    alice.delete_all()
+    assert alice.list_recent() == []

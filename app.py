@@ -12,6 +12,7 @@ from plainspeak import calendar_export, checks, demo, history
 from plainspeak.analyzer import AnalyzerError, analyze_letter, ask_question, has_api_key
 from plainspeak.export import next_deadline, summary_html
 from plainspeak.images import prepare_image
+from plainspeak.privacy import MAX_PAGES, MAX_TEXT_CHARS, RateLimiter, check_upload, redact
 from plainspeak.schema import LetterAnalysis
 from plainspeak.speech import LANGUAGES, RTL_LANGUAGES, text_to_mp3
 from plainspeak.ui_text import GENERIC_QUESTIONS, friendly_date, labels
@@ -26,11 +27,45 @@ try:
 except FileNotFoundError:
     pass  # running locally with no secrets file: .env is used instead
 
-# Who owns saved letters. On your own computer (PLAINSPEAK_LOCAL=1) they're kept between visits.
-# On the public website each visitor gets a private random ID, so nobody sees anyone else's letters.
-if "owner" not in st.session_state:
-    st.session_state.owner = "local" if os.getenv("PLAINSPEAK_LOCAL") == "1" else uuid.uuid4().hex
-OWNER = st.session_state.owner
+# Where "My letters" are kept.
+#  - On your own computer (PLAINSPEAK_LOCAL=1): in a file, so they're still there next time.
+#  - On the public website: only in this visitor's session memory, never written to the server's disk.
+LOCAL_MODE = os.getenv("PLAINSPEAK_LOCAL") == "1"
+
+PRIVACY_NOTE = """
+- **We don't keep your letters.** On this website, letters you save stay in your browser session only and are
+  deleted when you close the page. Nothing is written to our server's disk, and we don't log what you upload.
+- **ID numbers are hidden** in typed or pasted text before it's sent to the AI.
+- **The AI is Google Gemini.** This demo uses Gemini's *free* tier. Under Google's terms, free-tier content may be
+  used to improve Google's products and may be read by human reviewers. So please **don't upload letters with
+  sensitive details** here. Cover ID numbers, or use the example letters. A real launch would use the paid tier,
+  where Google doesn't use your data to improve its products.
+- Your API key and the AI connection stay on our server. Your browser never sees them.
+"""
+store = history.DiskStore() if LOCAL_MODE else history.SessionStore(st.session_state)
+
+# Limits so one person (or a bot) can't use up the free AI quota for everyone.
+if "visitor" not in st.session_state:
+    st.session_state.visitor = uuid.uuid4().hex
+
+
+@st.cache_resource
+def limiters() -> tuple[RateLimiter, RateLimiter]:
+    """Shared by every visitor: 6 AI requests per visitor per 10 minutes, 300 per day for the whole site."""
+    return RateLimiter(limit=6, window=600), RateLimiter(limit=int(os.getenv("MAX_DAILY_AI_CALLS", "300")),
+                                                          window=86_400)
+
+
+def ai_allowed() -> bool:
+    per_visitor, whole_site = limiters()
+    if not per_visitor.allow(st.session_state.visitor):
+        st.warning("You've asked a lot in a short time. Please wait a few minutes and try again.", icon="⏳")
+        return False
+    if not whole_site.allow("site"):
+        st.warning("PlainSpeak has reached its free daily limit. Please try again tomorrow, "
+                   "or call 211 for help with your letter.", icon="⏳")
+        return False
+    return True
 
 # ---------- Sidebar: language, accessibility, history ----------
 with st.sidebar:
@@ -40,26 +75,33 @@ with st.sidebar:
 
     st.divider()
     st.header("🗂️ My letters")
-    recent = history.list_recent(OWNER)
+    recent = store.list_recent()
     if not recent:
         st.caption("Letters you save show up here. Only you can see them."
-                   + ("" if OWNER == "local" else " They're cleared when you close this page."))
+                   + ("" if LOCAL_MODE else " They're deleted when you close this page."))
     for letter_id, saved_at, lang, doc_type in recent:
         col_open, col_del = st.columns([4, 1])
         if col_open.button(f"{doc_type} · {saved_at[:10]}", key=f"open-{letter_id}", use_container_width=True):
-            loaded = history.load(letter_id, OWNER)
+            loaded = store.load(letter_id)
             if loaded:
                 st.session_state.result, st.session_state.result_lang = loaded
                 st.session_state.saved_id = letter_id
                 st.session_state.pop("audio", None)
                 st.session_state.pop("qa", None)
         if col_del.button("🗑️", key=f"del-{letter_id}", help="Delete this letter"):
-            history.delete(letter_id, OWNER)
+            store.delete(letter_id)
             st.rerun()
+    if recent and st.button("🗑️ Delete all my letters", use_container_width=True):
+        store.delete_all()
+        for key in ("result", "result_lang", "saved_id", "audio", "qa"):
+            st.session_state.pop(key, None)
+        st.rerun()
 
     st.divider()
     st.caption("⚠️ PlainSpeak explains letters. It is **not** legal or medical advice. "
                "For serious matters, talk to a lawyer, caseworker, or the office that sent the letter.")
+    with st.expander("🔒 Privacy"):
+        st.markdown(PRIVACY_NOTE)
 
 
 # ---------- Accessibility styles ----------
@@ -147,8 +189,10 @@ def start_screen() -> None:
 
     with tab_photo:
         uploads = st.file_uploader("Add a photo of each page (or one PDF)", accept_multiple_files=True,
-                                   type=["png", "jpg", "jpeg", "webp", "heic", "pdf"])
-        st.caption("📸 Tips: lay the letter flat, use good light, and get the whole page in the photo.")
+                                   type=["png", "jpg", "jpeg", "webp", "pdf"])
+        st.caption("📸 Tips: lay the letter flat, use good light, and get the whole page in the photo. "
+                   "🔒 Cover ID numbers (like a Social Security or account number) with a finger or paper. "
+                   "PlainSpeak doesn't need them.")
         use_camera = st.toggle("Use my camera instead")
         snap = st.camera_input("Take a photo of your letter") if use_camera else None
         pages = ([snap] if snap else []) + list(uploads or [])
@@ -156,18 +200,28 @@ def start_screen() -> None:
             images = [p for p in pages if p.type.startswith("image/")]
             if images:
                 st.image(images, caption=[f"Page {i}" for i in range(1, len(images) + 1)], width=140)
+            problems = [f"{p.name}: {err}" for p in pages if (err := check_upload(p.getvalue(), p.type))]
+            if len(pages) > MAX_PAGES:
+                problems.append(f"Please add at most {MAX_PAGES} pages at a time.")
+            for problem in problems:
+                st.error(problem, icon="🚫")
             if st.button(f"Explain my letter ({len(pages)} page{'s' if len(pages) > 1 else ''})", type="primary",
-                         key="go-photo", disabled=not has_api_key(), use_container_width=True):
+                         key="go-photo", disabled=not has_api_key() or bool(problems), use_container_width=True):
                 st.session_state.request = {"files": [prepare_image(p.getvalue(), p.type) for p in pages]}
                 st.rerun()
 
     with tab_text:
-        pasted = st.text_area("Paste the words from your letter", height=180,
+        pasted = st.text_area("Paste the words from your letter", height=180, max_chars=MAX_TEXT_CHARS,
                               placeholder="Copy and paste the text of the letter here…")
+        st.caption("🔒 ID numbers (Social Security, card, account and case numbers) are hidden automatically "
+                   "before your letter is sent to the AI.")
         if st.button("Explain my letter", type="primary", key="go-text", disabled=not has_api_key(),
                      use_container_width=True):
             if pasted.strip():
-                st.session_state.request = {"text": pasted}
+                clean, hidden = redact(pasted)
+                if hidden:
+                    st.session_state.notice = f"🔒 We hid {hidden} ID number(s) before sending your letter to the AI."
+                st.session_state.request = {"text": clean}
                 st.rerun()
             else:
                 st.warning("The box is empty. Paste the words from your letter first.")
@@ -198,8 +252,8 @@ def start_screen() -> None:
 
 
 # ---------- Run the AI ----------
-if "request" in st.session_state:
-    req = st.session_state.pop("request")
+req = st.session_state.pop("request", None)   # take it out first, so a blocked request isn't retried forever
+if req is not None and ai_allowed():
     with st.spinner("Reading your letter… this takes about 10–20 seconds."):
         try:
             show_answer(analyze_letter(language, **req), language)
@@ -346,7 +400,7 @@ def show_result(a: LetterAnalysis, lang_name: str) -> None:
         if answer is None:
             with st.spinner("…"):
                 try:
-                    answer = ask_question(a.original_text, asked, lang_name)
+                    answer = ask_question(a.original_text, redact(asked)[0], lang_name) if ai_allowed() else None
                 except AnalyzerError as e:
                     st.error(str(e), icon="🚫")
         if answer:
@@ -384,7 +438,7 @@ def show_result(a: LetterAnalysis, lang_name: str) -> None:
     if st.session_state.get("saved_id"):
         col_save.caption(f"✓ {t['saved']}")
     elif col_save.button(f"💾 {t['save']}", use_container_width=True):
-        st.session_state.saved_id = history.save(a, lang_name, OWNER)
+        st.session_state.saved_id = store.save(a, lang_name)
         st.rerun()
 
     with st.expander(t["show_original"]):

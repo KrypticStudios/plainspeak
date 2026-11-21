@@ -7,4 +7,13 @@ textColor = "#0f172a"
 font = "sans serif"
 
 [server]
-maxUploadSize = 10
+maxUploadSize = 10                 # MB per file
+enableXsrfProtection = true        # blocks other websites from submitting forms to PlainSpeak
+enableCORS = true
+
+[browser]
+gatherUsageStats = false           # don't send usage statistics to Streamlit
+
+[client]
+showErrorDetails = false           # never show code or stack traces to visitors
+toolbarMode = "viewer"             # hide developer menu items from visitors

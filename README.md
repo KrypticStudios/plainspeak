@@ -25,6 +25,9 @@ AI can make things up. PlainSpeak protects against that:
 - Serious letters (eviction, court, debt, losing benefits) get a **"talk to a real person"** warning. PlainSpeak explains letters. It does not give legal advice.
 - It shows how hard the original letter is to read compared with the summary, measured as a school grade level (Flesch-Kincaid).
 
+### Privacy and security
+On the public site, no letters are stored on disk; saved letters disappear when you close the page. ID numbers are hidden before text is sent to the AI, uploads are checked, usage is rate-limited, and the API key never reaches the browser. See **[SECURITY.md](SECURITY.md)** for the full design and its limits, including that this demo uses Gemini's free tier.
+
 ### Accessibility
 The app has options for larger text and high contrast, can read the summary aloud, explains in 11 languages including right-to-left Arabic, and uses plain wording throughout, including in its error messages. Urgency is shown with an icon and words as well as color, so it doesn't rely on color alone.
 
