@@ -29,6 +29,10 @@ Rules:
   in the letter's ORIGINAL language, copied word for word.
 - Every deadline, action and money item MUST include a `source_quote` copied exactly from the letter.
   Quote the WHOLE sentence or line it comes from (not just a date or a number), so the reader can find it.
+- Only fill in a deadline's `date` if that exact date is WRITTEN in the letter. If the letter gives a time
+  period instead (for example "within 14 days after service" or "10 days, not counting weekends"), leave
+  `date` empty, explain the time period in `what`, and add to `unclear_points` that the exact deadline
+  depends on the day they received the letter. Never calculate a date yourself.
   Never invent dates, amounts, phone numbers or names. If something is not in the letter, leave it empty
   and mention it in `unclear_points`.
 - Do not give legal or medical advice. Explain what the letter says and who can help.

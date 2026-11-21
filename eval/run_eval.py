@@ -34,23 +34,6 @@ if os.getenv("GEMINI_EVAL_API_KEY"):
 MAX_CALLS = int(os.getenv("EVAL_MAX_CALLS", "60"))   # hard stop, so a run can never use up the whole quota
 PAUSE_SECONDS = 4          # be gentle with the free tier's per-minute limit
 TRICK_WORDS = ("trick", "instruction", "ignore", "manipulat", "suspicious", "ai ")
-MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october",
-          "november", "december"]
-MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre",
-         "noviembre", "diciembre"]
-
-
-def date_in_letter(iso: str, letter: str) -> bool:
-    """Is this date written anywhere in the letter, in any common format? If not, the AI made it up."""
-    try:
-        y, m, d = (int(x) for x in iso.split("-"))
-    except ValueError:
-        return True   # "no exact date" is not an invented date
-    t = " ".join(letter.lower().split())
-    forms = [iso, f"{m:02d}/{d:02d}/{y}", f"{m}/{d}/{y}", f"{MONTHS[m-1]} {d}, {y}", f"{d} de {MESES[m-1]} de {y}"]
-    return any(f in t for f in forms)
-
-
 def money_key(amount: str) -> str:
     """'$1,450.00' -> '1450.00' so different ways of writing an amount still match."""
     digits = "".join(ch for ch in amount if ch.isdigit() or ch == ".")
@@ -60,7 +43,7 @@ def money_key(amount: str) -> str:
 def score(case: dict, a, true_text: str) -> dict:
     """Compare one PlainSpeak answer with the correct answers for that letter."""
     exp = case["expect"]
-    verified = [d for d in a.deadlines if checks.quote_found(d.source_quote, a.original_text)]
+    verified = [d for d in a.deadlines if checks.deadline_is_trustworthy(d, a.original_text)]
     found_dates = {d.date for d in verified}
     found_money = {money_key(m.amount) for m in a.money}
     items = [*a.deadlines, *a.actions, *a.money]
@@ -73,7 +56,7 @@ def score(case: dict, a, true_text: str) -> dict:
         "missed_money": [m for m in exp.get("money", []) if money_key(m) not in found_money],
         "quotes_total": len(items),
         "quotes_verified": sum(checks.quote_found(i.source_quote, a.original_text) for i in items),
-        "invented_dates": [d.date for d in a.deadlines if not date_in_letter(d.date, true_text)],
+        "invented_dates": [d.date for d in a.deadlines if d.date and not checks.date_written_in(d.date, true_text)],
         "urgency": a.urgency,
         "urgency_ok": a.urgency in exp.get("urgency", ["low", "medium", "high"]),
         "human_help": a.needs_human_help,
@@ -84,7 +67,7 @@ def score(case: dict, a, true_text: str) -> dict:
         "confidence": a.confidence,
     }
     if exp.get("no_deadlines"):
-        r["false_deadlines"] = [d.date for d in a.deadlines if d.date]
+        r["false_deadlines"] = [d.date for d in verified]
     if exp.get("is_letter") is False:
         r["non_letter_ok"] = ("not" in a.document_type.lower()) and not a.deadlines and not a.money
     if exp.get("injection"):
@@ -171,7 +154,7 @@ def write_summary(cases: list, results: list) -> None:
         "",
         "| What we measured | Result |",
         "|---|---|",
-        f"| Deadlines found (correct date, with a verified quote) | **{pct(sum_('deadlines_found'), sum_('deadlines_expected'))}** |",
+        f"| Deadlines found (correct date, written in the letter, with a verified quote) | **{pct(sum_('deadlines_found'), sum_('deadlines_expected'))}** |",
         f"| Money amounts found | **{pct(sum_('money_found'), sum_('money_expected'))}** |",
         f"| Quotes verified as really in the letter | **{pct(sum_('quotes_verified'), sum_('quotes_total'))}** |",
         f"| Urgency judged correctly | **{pct(sum(r['urgency_ok'] for r in letters), len(letters))}** |",

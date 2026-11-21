@@ -41,3 +41,32 @@ def reading_grade(text: str) -> float | None:
     if len(text.split()) < 10:
         return None
     return round(max(0.0, textstat.flesch_kincaid_grade(text)), 1)
+
+
+MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october",
+          "november", "december"]
+MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre",
+         "noviembre", "diciembre"]
+
+
+def date_written_in(iso: str, letter_text: str) -> bool:
+    """True if the date (YYYY-MM-DD) is actually written in the letter, in any common format.
+
+    Letters often say "within 14 days after service" instead of a date. The AI may then work out a
+    date itself, but that guess can be wrong (it depends on when the person got the letter), so we
+    never put a calculated date in the countdown or the calendar.
+    """
+    try:
+        y, m, d = (int(x) for x in iso.strip().split("-"))
+    except ValueError:
+        return False
+    t = " ".join(letter_text.lower().split())
+    forms = [f"{y}-{m:02d}-{d:02d}", f"{m:02d}/{d:02d}/{y}", f"{m}/{d}/{y}", f"{m:02d}/{d:02d}/{y % 100:02d}",
+             f"{MONTHS[m - 1]} {d}, {y}", f"{MONTHS[m - 1]} {d} {y}", f"{d} {MONTHS[m - 1]} {y}",
+             f"{d} de {MESES[m - 1]} de {y}", f"{d} de {MESES[m - 1]} del {y}"]
+    return any(f in t for f in forms)
+
+
+def deadline_is_trustworthy(deadline, letter_text: str) -> bool:
+    """Its quote is really in the letter AND its date is written in the letter (not calculated)."""
+    return quote_found(deadline.source_quote, letter_text) and date_written_in(deadline.date, letter_text)

@@ -3,7 +3,7 @@
 from datetime import date
 from html import escape
 
-from .checks import quote_found
+from .checks import deadline_is_trustworthy, quote_found
 from .schema import LetterAnalysis
 from .ui_text import friendly_date, labels
 
@@ -20,7 +20,7 @@ def days_left(value: str, today: date | None = None) -> int | None:
 def next_deadline(a: LetterAnalysis, today: date | None = None):
     """The soonest verified deadline that hasn't passed yet (or the latest passed one), with days left."""
     dated = [(days_left(d.date, today), d) for d in a.deadlines
-             if days_left(d.date, today) is not None and quote_found(d.source_quote, a.original_text)]
+             if days_left(d.date, today) is not None and deadline_is_trustworthy(d, a.original_text)]
     if not dated:
         return None
     upcoming = sorted([x for x in dated if x[0] >= 0], key=lambda x: x[0])
@@ -33,6 +33,8 @@ def summary_html(a: LetterAnalysis, lang_code: str) -> str:
     direction = "rtl" if lang_code == "ar" else "ltr"
     deadlines = "".join(
         f"<li><b>{escape(friendly_date(d.date, lang_code) or t['no_date'])}</b> — {escape(d.what)}</li>"
+        if deadline_is_trustworthy(d, a.original_text)
+        else f"<li>{escape(d.what)} ({escape(t['estimated'])})</li>"
         for d in a.deadlines if quote_found(d.source_quote, a.original_text))
     steps = "".join(f"<li>☐ {escape(s.step)}</li>" for s in a.actions)
     money = "".join(f"<li><b>{escape(m.amount)}</b> — {escape(m.what)}</li>" for m in a.money)

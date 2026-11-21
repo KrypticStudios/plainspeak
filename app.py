@@ -335,12 +335,16 @@ def show_result(a: LetterAnalysis, lang_name: str) -> None:
         heading("📅", t["dates"])
         verified = []
         for d in a.deadlines:
-            when = friendly_date(d.date, code) or t["no_date"]
-            ok = checks.quote_found(d.source_quote, a.original_text)
-            if ok:
+            quote_ok = checks.quote_found(d.source_quote, a.original_text)
+            if checks.deadline_is_trustworthy(d, a.original_text):
                 verified.append(d)
-            card(f"<b>{esc(when)}</b> — {esc(d.what)}{quote_html(d.source_quote, a.original_text, t)}",
-                 "" if ok else "ps-high")
+                when = f"<b>{esc(friendly_date(d.date, code))}</b>"
+            else:
+                # No date written in the letter (or the AI worked one out itself): don't show a date we can't back up.
+                when = f'<b>{esc(t["no_date"])}</b><br><span class="ps-warn">⏳ {esc(t["estimated"])}</span>' \
+                    if quote_ok else f"<b>{esc(friendly_date(d.date, code) or t['no_date'])}</b>"
+            card(f"{when} — {esc(d.what)}{quote_html(d.source_quote, a.original_text, t)}",
+                 "" if quote_ok else "ps-high")
         # Only dates we could find in the letter go into the calendar.
         ics = calendar_export.deadlines_to_ics(verified)
         if ics:

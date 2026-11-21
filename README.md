@@ -28,6 +28,21 @@ AI can make things up. PlainSpeak protects against that:
 - Serious letters (eviction, court, debt, losing benefits) get a **"talk to a real person"** warning. PlainSpeak explains letters. It does not give legal advice.
 - It shows how hard the original letter is to read compared with the summary, measured as a school grade level (Flesch-Kincaid).
 
+### How well does it work? We tested it.
+We wrote **19 test letters** modeled on real public templates: the CFPB debt-collection model notice, CMS Medicaid notices, an IRS balance-due notice, a state statutory 14-day eviction notice, a court eviction summons, a jury summons, and more. All names and numbers are fictional. For each one we wrote down the correct answers by hand. Then we ran PlainSpeak on them as pasted text, as **used, folded, coffee-stained phone photos**, as **blurry photos**, as **scanned PDFs**, and in Spanish: **35 runs** in total.
+
+| Result (35 runs) | |
+|---|---|
+| Deadlines found | **97%** (30/31) |
+| Money amounts found | **100%** (20/20) |
+| Quotes verified as really in the letter | **100%** (164/164) |
+| Urgency and "talk to a real person" correct | **100%** (34/34) |
+| Reading level | **grade 10.0 → 4.9** |
+| Time per letter (median) | **3.3 s** |
+| Tricky cases: a letter that tries to trick the AI, a non-letter | both handled ✅ |
+
+Full results, the one miss, and what we changed because of the test: **[eval/RESULTS.md](eval/RESULTS.md)**. The test runner is `eval/run_eval.py` and the answer key is `eval/cases.json`.
+
 ### Privacy and security
 On the public site, no letters are stored on disk; saved letters disappear when you close the page. ID numbers are hidden before text is sent to the AI, uploads are checked, usage is rate-limited, and the API key never reaches the browser. See **[SECURITY.md](SECURITY.md)** for the full design and its limits, including that this demo uses Gemini's free tier.
 

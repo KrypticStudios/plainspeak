@@ -113,6 +113,7 @@ def labels(lang_code: str) -> dict[str, str]:
     result = dict(zip(KEYS, TEXT.get(lang_code, TEXT["en"])))
     result.update(zip(EXTRA_KEYS, EXTRA.get(lang_code, EXTRA["en"])))
     result.update(zip(ASK_KEYS, ASK.get(lang_code, ASK["en"])))
+    result["estimated"] = ESTIMATED.get(lang_code, ESTIMATED["en"])
     return result
 
 
@@ -146,3 +147,19 @@ ASK = {
 # Generic questions offered when there is no ready-made list (live AI answers).
 GENERIC_QUESTIONS = ["What happens if I miss the deadline?", "Can I get help paying?",
                      "What documents do I need?", "Who should I call first?"]
+
+
+# Shown when a deadline is a time period ("within 14 days") rather than a date written in the letter.
+ESTIMATED = {
+    "en": "The letter gives a time period, not a date. Count from the day you got the letter, and call to confirm.",
+    "es": "La carta da un plazo, no una fecha. Cuente desde el día en que recibió la carta y llame para confirmar.",
+    "zh-CN": "信中给的是一段时间，不是具体日期。请从您收到信的那天开始算，并打电话确认。",
+    "vi": "Thư cho một khoảng thời gian, không phải ngày cụ thể. Hãy tính từ ngày bạn nhận thư và gọi để xác nhận.",
+    "ar": "تذكر الرسالة مدة زمنية وليس تاريخًا. احسبها من يوم استلامك للرسالة، واتصل للتأكد.",
+    "hi": "पत्र में तारीख नहीं, एक समय-सीमा दी गई है। जिस दिन पत्र मिला उस दिन से गिनें और फ़ोन करके पक्का करें।",
+    "tl": "Panahon ang ibinigay ng sulat, hindi petsa. Bilangin mula sa araw na natanggap mo ito, at tumawag para makasiguro.",
+    "fr": "La lettre donne un délai, pas une date. Comptez à partir du jour où vous l'avez reçue et appelez pour confirmer.",
+    "ko": "편지에는 날짜가 아니라 기간이 적혀 있습니다. 편지를 받은 날부터 세고, 전화로 확인하세요.",
+    "ru": "В письме указан срок, а не дата. Считайте со дня получения письма и позвоните, чтобы уточнить.",
+    "pt": "A carta dá um prazo, não uma data. Conte a partir do dia em que recebeu a carta e ligue para confirmar.",
+}

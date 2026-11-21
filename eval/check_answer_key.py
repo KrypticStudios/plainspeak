@@ -7,7 +7,8 @@ import json
 import re
 from pathlib import Path
 
-from run_eval import date_in_letter, money_key
+from run_eval import money_key
+from plainspeak.checks import date_written_in as date_in_letter
 
 HERE = Path(__file__).resolve().parent
 cases = json.loads((HERE / "cases.json").read_text())

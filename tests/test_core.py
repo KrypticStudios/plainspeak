@@ -177,3 +177,21 @@ def test_session_store_is_per_visitor_and_deletable():
     assert alice.load(i) == (a, "English") and bob.list_recent() == []
     alice.delete_all()
     assert alice.list_recent() == []
+
+
+def test_calculated_dates_are_not_trusted():
+    from plainspeak.checks import date_written_in, deadline_is_trustworthy
+    from plainspeak.export import next_deadline
+    letter = "You must pay within fourteen (14) days after service. Date of notice: November 17, 2026."
+    assert date_written_in("2026-11-17", letter)
+    assert not date_written_in("2026-12-01", letter)            # 14 days later: worked out, not written
+    assert date_written_in("2026-12-03", "Cita: 3 de diciembre de 2026 a las 2:00 p. m.")
+    assert date_written_in("2026-12-21", "NO LATER THAN 12/21/2026.")
+    guessed = Deadline(date="2026-12-01", what="Pay or move out",
+                       source_quote="You must pay within fourteen (14) days after service.")
+    assert not deadline_is_trustworthy(guessed, letter)
+    a = demo.demo_analysis("Eviction notice (rent)", "English")
+    fake = a.model_copy(update={"deadlines": [guessed], "original_text": letter})
+    assert next_deadline(fake) is None                           # no countdown for a guessed date
+    assert calendar_export.deadlines_to_ics([d for d in fake.deadlines
+                                             if deadline_is_trustworthy(d, letter)]) is None
