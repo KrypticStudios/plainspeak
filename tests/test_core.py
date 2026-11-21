@@ -59,3 +59,18 @@ def test_no_api_key_gives_friendly_error(monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     with pytest.raises(AnalyzerError, match="API key"):
         analyze_letter("English", text="hello")
+
+
+def test_every_language_has_every_label():
+    from plainspeak.speech import LANGUAGES
+    from plainspeak.ui_text import KEYS, TEXT, friendly_date
+    for code in LANGUAGES.values():
+        assert len(TEXT[code]) == len(KEYS), code
+        assert friendly_date("2026-12-04", code)
+    assert friendly_date("not a date", "en") is None
+
+
+def test_simulated_mistake_is_flagged():
+    a = demo.with_simulated_mistake(demo.demo_analysis("Eviction notice (rent)", "English"))
+    assert not checks.quote_found(a.deadlines[0].source_quote, a.original_text)
+    assert all(checks.quote_found(d.source_quote, a.original_text) for d in a.deadlines[1:])

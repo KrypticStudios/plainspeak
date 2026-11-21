@@ -9,13 +9,13 @@ from plainspeak import calendar_export, checks, demo, history
 from plainspeak.analyzer import AnalyzerError, analyze_letter, has_api_key
 from plainspeak.schema import LetterAnalysis
 from plainspeak.speech import LANGUAGES, RTL_LANGUAGES, text_to_mp3
+from plainspeak.ui_text import friendly_date, labels
 
 st.set_page_config(page_title="PlainSpeak", page_icon="📬", layout="centered")
 
 # ---------- Sidebar: language, accessibility, history ----------
 with st.sidebar:
-    st.header("⚙️ Settings")
-    language = st.selectbox("Explain my letter in", list(LANGUAGES), help="The summary and steps will be in this language.")
+    st.header("⚙️ Display")
     big_text = st.toggle("Larger text", value=False)
     high_contrast = st.toggle("High contrast", value=False)
 
@@ -39,7 +39,6 @@ with st.sidebar:
     st.caption("⚠️ PlainSpeak explains letters. It is **not** legal or medical advice. "
                "For serious matters, talk to a lawyer, caseworker, or the office that sent the letter.")
 
-lang_code = LANGUAGES[language]
 
 # ---------- Accessibility styles ----------
 css = """
@@ -54,13 +53,29 @@ css = """
 </style>
 """
 if big_text:
-    css += "<style>html, body, [class*='st-'], p, li, label, .ps-card {font-size: 1.25rem !important;}</style>"
-if high_contrast:
+    # Body text only, so headings stay bigger than the text under them.
     css += """<style>
-    .stApp, .ps-card, .ps-high, .ps-medium, .ps-low {background: #000 !important; color: #fff !important;}
-    .stApp p, .stApp li, .stApp label, .stApp h1, .stApp h2, .stApp h3, .ps-quote {color: #fff !important;}
-    .ps-card {border-color: #ffff00 !important;}
-    .ps-ok {color: #7CFC00 !important;} .ps-warn {color: #ffff00 !important;}
+    .stMarkdown p, .stMarkdown li, .ps-card, label p, button p, .stCaption, [data-testid="stCaptionContainer"]
+        {font-size: 1.3rem !important; line-height: 1.6 !important;}
+    .ps-quote {font-size: 1.1rem !important;}
+    .stMarkdown h2 {font-size: 2.2rem !important;} .stMarkdown h3 {font-size: 1.8rem !important;}
+    </style>"""
+if high_contrast:
+    # Black background, white text, yellow outlines: the whole page, including the sidebar.
+    css += """<style>
+    .stApp, [data-testid="stSidebar"], [data-testid="stHeader"], .ps-card, .ps-high, .ps-medium, .ps-low,
+    [data-testid="stSelectbox"] div, [data-baseweb="select"] div, [data-baseweb="select"] input, [data-baseweb="popover"] *, [role="listbox"] *,
+    [data-testid="stAlert"], [data-testid="stAlertContainer"], [data-testid="stAlert"] *,
+    textarea, [data-testid="stFileUploaderDropzone"], [data-testid="stExpander"] details
+        {background: #000 !important; color: #fff !important;}
+    [data-testid="stAlertContainer"] {border: 2px solid #ffff00 !important;}
+    .stApp *, [data-testid="stSidebar"] * {color: #fff !important;}
+    .ps-card, [data-baseweb="select"] > div, textarea, button, [data-testid="stFileUploaderDropzone"]
+        {border: 2px solid #ffff00 !important;}
+    button {background: #000 !important;}
+    a, .stApp a {color: #00ffff !important; text-decoration: underline !important;}
+    .ps-ok {color: #7CFC00 !important;} .ps-warn, .ps-warn * {color: #ffff00 !important;}
+    .ps-quote {border-left-color: #ffff00 !important;}
     </style>"""
 st.markdown(css, unsafe_allow_html=True)
 
@@ -72,6 +87,9 @@ st.markdown("**Got a confusing letter?** Take a photo. We'll tell you what it me
 if not has_api_key():
     st.info("Demo mode: no AI key is set up, so you can try the **sample letters** below. "
             "To read your own letters, add a free Gemini key (see README).", icon="ℹ️")
+
+language = st.selectbox("🌐 Explain my letter in / Idioma / 语言 / Ngôn ngữ / اللغة", list(LANGUAGES),
+                        help="The summary and steps will be in this language.")
 
 # ---------- Input ----------
 tab_photo, tab_text, tab_sample = st.tabs(["📷 Photo or file", "⌨️ Paste text", "📄 Try a sample"])
@@ -105,9 +123,13 @@ with tab_sample:
     instant = demo.demo_analysis(sample, language)
     use_instant = instant is not None and (not has_api_key() or st.toggle(
         "Use the saved demo answer (works offline)", value=True))
+    fake_mistake = use_instant and st.toggle(
+        "🧪 Show how PlainSpeak catches AI mistakes",
+        help="Adds one made-up deadline, the kind of thing an AI might invent, so you can see our check flag it.")
     if st.button("Explain this sample", type="primary", key="go-sample"):
         if use_instant:
-            st.session_state.result, st.session_state.result_lang = instant, language
+            st.session_state.result = demo.with_simulated_mistake(instant) if fake_mistake else instant
+            st.session_state.result_lang = language
             st.session_state.saved_id = None
         elif has_api_key():
             st.session_state.request = {"text": demo.sample_text(sample)}
@@ -134,31 +156,37 @@ def esc(s: str) -> str:
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def quote_html(quote: str, letter: str) -> str:
+def quote_html(quote: str, letter: str, t: dict) -> str:
     """The exact words from the letter, with a check mark if we found them in the letter."""
     if checks.quote_found(quote, letter):
-        badge = '<span class="ps-ok">✓ found in your letter</span>'
+        badge = f'<span class="ps-ok">✓ {t["found"]}</span>'
     else:
-        badge = '<span class="ps-warn">⚠ we could not find these words in your letter. Please double-check.</span>'
-    return f'<div class="ps-quote">“{esc(quote)}” — {badge}</div>'
+        badge = f'<span class="ps-warn">⚠ {t["not_found"]}</span>'
+    return f'<div class="ps-quote" dir="ltr">“{esc(quote)}” — {badge}</div>'
 
 
 def show_result(a: LetterAnalysis, lang_name: str) -> None:
     code = LANGUAGES.get(lang_name, "en")
+    t = labels(code)  # headings in the reader's language
     direction = "rtl" if code in RTL_LANGUAGES else "ltr"
-    st.divider()
-    st.subheader(f"📄 {a.document_type}")
-    st.caption(f"From: {a.sender}")
 
-    icon = {"high": "🔴 Urgent", "medium": "🟠 Soon", "low": "🟢 Not urgent"}[a.urgency]
-    st.markdown(f'<div class="ps-card ps-{a.urgency}" dir="{direction}"><b>{icon}</b> — {esc(a.urgency_reason)}</div>',
-                unsafe_allow_html=True)
+    def card(html: str, extra_class: str = "") -> None:
+        st.markdown(f'<div class="ps-card {extra_class}" dir="{direction}">{html}</div>', unsafe_allow_html=True)
+
+    def heading(icon: str, text: str) -> None:
+        st.markdown(f'<h3 dir="{direction}">{icon} {esc(text)}</h3>', unsafe_allow_html=True)
+
+    st.divider()
+    st.markdown(f'<h2 dir="{direction}">📄 {esc(a.document_type)}</h2>', unsafe_allow_html=True)
+    st.caption(f"{t['from']}: {a.sender}")
+
+    icon = {"high": f"🔴 {t['urgent']}", "medium": f"🟠 {t['soon']}", "low": f"🟢 {t['not_urgent']}"}[a.urgency]
+    card(f"<b>{icon}</b> — {esc(a.urgency_reason)}", f"ps-{a.urgency}")
 
     # Summary + read aloud
-    st.markdown("### 💬 What this letter means")
-    st.markdown(f'<div class="ps-card" dir="{direction}" style="font-size:1.1em">{esc(a.summary)}</div>',
-                unsafe_allow_html=True)
-    if st.button("🔊 Read this out loud", key="tts"):
+    heading("💬", t["means"])
+    card(f'<span style="font-size:1.1em">{esc(a.summary)}</span>')
+    if st.button(f"🔊 {t['read_aloud']}", key="tts"):
         audio = text_to_mp3(a.summary, code)
         if audio:
             st.session_state.audio = (a.summary, audio)  # keep it so the player doesn't vanish on the next click
@@ -173,69 +201,71 @@ def show_result(a: LetterAnalysis, lang_name: str) -> None:
         st.caption(f"📉 Reading level: the letter needs grade **{before:.0f}**; this summary needs grade **{after:.0f}**.")
 
     if a.confidence != "high" or a.unclear_points:
-        label = {"high": "", "medium": " (we're fairly sure, but check the details)",
-                 "low": " (the letter was hard to read, so please double-check)"}[a.confidence]
-        st.markdown(f"### ❓ Things we're not sure about{label}")
-        for p in a.unclear_points:
-            st.markdown(f"- {p}")
+        sure = {"high": "", "medium": " (?)", "low": " (??)"}[a.confidence]
+        heading("❓", t["not_sure"] + sure)
+        card("<br>".join(f"• {esc(p)}" for p in a.unclear_points) or "—")
 
     # Deadlines
     if a.deadlines:
-        st.markdown("### 📅 Important dates")
+        heading("📅", t["dates"])
+        verified = []
         for d in a.deadlines:
-            when = d.date or "No exact date given"
-            st.markdown(f'<div class="ps-card" dir="{direction}"><b>{esc(when)}</b> — {esc(d.what)}'
-                        f'{quote_html(d.source_quote, a.original_text)}</div>', unsafe_allow_html=True)
-        ics = calendar_export.deadlines_to_ics(a.deadlines)
+            when = friendly_date(d.date, code) or t["no_date"]
+            ok = checks.quote_found(d.source_quote, a.original_text)
+            if ok:
+                verified.append(d)
+            card(f"<b>{esc(when)}</b> — {esc(d.what)}{quote_html(d.source_quote, a.original_text, t)}",
+                 "" if ok else "ps-high")
+        # Only dates we could find in the letter go into the calendar.
+        ics = calendar_export.deadlines_to_ics(verified)
         if ics:
-            st.download_button("📆 Add these dates to my calendar", ics, file_name="plainspeak-deadlines.ics",
-                               mime="text/calendar", help="Opens in Google, Apple or Outlook Calendar, with a reminder 2 days before.")
+            st.download_button(f"📆 {t['add_calendar']}", ics, file_name="plainspeak-deadlines.ics",
+                               mime="text/calendar",
+                               help="Opens in Google, Apple or Outlook Calendar, with a reminder 2 days before.")
 
     # Steps
     if a.actions:
-        st.markdown("### ✅ What to do")
+        heading("✅", t["todo"])
         for i, s in enumerate(a.actions):
             st.checkbox(s.step, key=f"step-{i}")
-            st.markdown(quote_html(s.source_quote, a.original_text), unsafe_allow_html=True)
+            st.markdown(quote_html(s.source_quote, a.original_text, t), unsafe_allow_html=True)
 
     # Money
     if a.money:
-        st.markdown("### 💵 Money")
+        heading("💵", t["money"])
         for m in a.money:
-            st.markdown(f'<div class="ps-card" dir="{direction}"><b>{esc(m.amount)}</b> — {esc(m.what)}'
-                        f'{quote_html(m.source_quote, a.original_text)}</div>', unsafe_allow_html=True)
+            card(f"<b>{esc(m.amount)}</b> — {esc(m.what)}{quote_html(m.source_quote, a.original_text, t)}")
 
     # Contacts
     if a.contacts:
-        st.markdown("### ☎️ Who to contact")
+        heading("☎️", t["contact"])
         for c in a.contacts:
-            lines = [f"**{c.name}** — {c.why}"]
+            lines = [f"<b>{esc(c.name)}</b> — {esc(c.why)}"]
             if c.phone:
                 digits = "".join(ch for ch in c.phone if ch.isdigit() or ch == "+")
-                lines.append(f"📞 [{c.phone}](tel:{digits})")
+                lines.append(f'📞 <a href="tel:{digits}">{esc(c.phone)}</a>')
             if c.email:
-                lines.append(f"✉️ {c.email}")
+                lines.append(f"✉️ {esc(c.email)}")
             if c.address:
-                lines.append(f"📍 {c.address}")
-            st.markdown("  \n".join(lines))
+                lines.append(f"📍 {esc(c.address)}")
+            card("<br>".join(lines))
 
     if a.rights:
-        st.markdown("### 🛡️ Your rights (from the letter)")
-        for r in a.rights:
-            st.markdown(f"- {r}")
+        heading("🛡️", t["rights"])
+        card("<br>".join(f"• {esc(r)}" for r in a.rights))
 
     if a.needs_human_help:
-        st.warning(f"**Talk to a real person about this.** {a.help_reason}", icon="🧑‍⚖️")
+        st.warning(f"**{t['talk_person']}** {a.help_reason}", icon="🧑‍⚖️")
     else:
         st.success(a.help_reason, icon="👍")
 
-    with st.expander("Show the full original letter"):
+    with st.expander(t["show_original"]):
         st.text(a.original_text)
 
     # Save
     if st.session_state.get("saved_id"):
-        st.caption("✓ Saved to My letters.")
-    elif st.button("💾 Save to My letters"):
+        st.caption(f"✓ {t['saved']}")
+    elif st.button(f"💾 {t['save']}"):
         st.session_state.saved_id = history.save(a, lang_name)
         st.rerun()
 

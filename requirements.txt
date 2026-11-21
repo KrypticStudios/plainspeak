@@ -7,3 +7,4 @@ icalendar>=6.0
 pillow>=10.0
 textstat>=0.7
 pytest>=8.0
+babel>=2.14

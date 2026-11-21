@@ -17,6 +17,8 @@ Eviction notices, hospital bills and benefits renewals are written in legal, bur
 ### Why you can trust it
 AI can make things up. PlainSpeak protects against that:
 - **Every deadline, step and amount quotes the exact words from the letter.** Ordinary Python code, not the AI, then checks that those words really appear in the letter. If they don't, the item gets a ⚠ warning so you know to double-check it.
+- Only dates that pass this check go into the calendar file.
+- In the sample tab, the **🧪 "Show how PlainSpeak catches AI mistakes"** switch adds a fake deadline so you can watch the check flag it.
 - The AI has to list **what it's unsure about** and give a **confidence** level.
 - Serious letters (eviction, court, debt, losing benefits) get a **"talk to a real person"** warning. PlainSpeak explains letters. It does not give legal advice.
 - It shows how hard the original letter is to read compared with the summary, measured as a school grade level (Flesch-Kincaid).

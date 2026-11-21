@@ -197,3 +197,12 @@ def demo_analysis(sample: str, language: str) -> LetterAnalysis | None:
     if data is None:
         return None
     return LetterAnalysis(original_text=sample_text(sample), **data)
+
+
+def with_simulated_mistake(a: LetterAnalysis) -> LetterAnalysis:
+    """For the demo: add a made-up deadline, like an AI hallucination would, to show the quote check catching it."""
+    from .schema import Deadline
+
+    fake = Deadline(date="2026-11-28", what="⚠ SIMULATED AI MISTAKE: pay a $200 late fee",
+                    source_quote="A late fee of $200.00 will be charged after November 28, 2026.")
+    return a.model_copy(update={"deadlines": [fake, *a.deadlines]})
