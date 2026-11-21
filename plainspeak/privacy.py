@@ -73,12 +73,27 @@ MAX_BYTES = 10 * 1024 * 1024  # 10 MB per file
 MAX_TEXT_CHARS = 20_000
 
 
+def pdf_page_count(data: bytes) -> int:
+    """Roughly count the pages in a PDF without any extra library.
+
+    PDFs list each page as "/Type /Page" and the total as "/Count N". We take the larger of the two,
+    so a PDF can't hide extra pages from us.
+    """
+    pages = len(re.findall(rb"/Type\s*/Page(?!s)", data))
+    counts = [int(n) for n in re.findall(rb"/Count\s+(\d+)", data)]
+    return max([pages, *counts])
+
+
 def check_upload(data: bytes, mime_type: str) -> str | None:
     """Return an error message if the file isn't a normal image or PDF, else None."""
     if len(data) > MAX_BYTES:
         return "That file is too big. Please use a file under 10 MB."
     if mime_type == "application/pdf":
-        return None if data[:5] == b"%PDF-" else "That doesn't look like a real PDF file."
+        if data[:5] != b"%PDF-":
+            return "That doesn't look like a real PDF file."
+        if pdf_page_count(data) > MAX_PAGES:
+            return f"That PDF has more than {MAX_PAGES} pages. Please upload only the pages of your letter."
+        return None
     if mime_type.startswith("image/"):
         from io import BytesIO
 

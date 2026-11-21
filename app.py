@@ -6,6 +6,8 @@ Run with:  .venv/bin/streamlit run app.py
 import importlib
 import os
 import uuid
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 import streamlit as st
 
@@ -15,14 +17,14 @@ import plainspeak.schema  # noqa: E402  (loaded first: the other files use it)
 # other files (plainspeak/*.py). That once crashed the live site. So: if any of our files changed on
 # disk since it was loaded, reload it. This costs nothing when nothing has changed.
 for _name in ["schema", "checks", "ui_text", "calendar_export", "export", "images", "privacy", "speech",
-              "history", "demo", "analyzer"]:
+              "history", "demo", "analyzer", "monitor"]:
     _mod = importlib.import_module(f"plainspeak.{_name}")
     _mtime = os.path.getmtime(_mod.__file__)
     if getattr(_mod, "_loaded_mtime", None) != _mtime:   # changed, or an old copy from before this check
         _mod = importlib.reload(_mod)
     _mod._loaded_mtime = _mtime
 
-from plainspeak import calendar_export, checks, demo, history  # noqa: E402
+from plainspeak import calendar_export, checks, demo, history, monitor  # noqa: E402
 from plainspeak.analyzer import AnalyzerError, analyze_letter, ask_question, has_api_key
 from plainspeak.export import next_deadline, summary_html
 from plainspeak.images import prepare_image
@@ -50,6 +52,8 @@ PRIVACY_NOTE = """
 - **We don't keep your letters.** On this website, letters you save stay in your browser session only and are
   deleted when you close the page. Nothing is written to our server's disk, and we don't log what you upload.
 - **ID numbers are hidden** in typed or pasted text before it's sent to the AI.
+- **Read-aloud** sends the plain-language summary and steps (not your letter) to Google's text-to-speech
+  service to turn them into audio. It only happens when you press the 🔊 button.
 - **The AI is Google Gemini.** This demo uses Gemini's *free* tier. Under Google's terms, free-tier content may be
   used to improve Google's products and may be read by human reviewers. So please **don't upload letters with
   sensitive details** here. Cover ID numbers, or use the example letters. A real launch would use the paid tier,
@@ -73,9 +77,11 @@ def limiters() -> tuple[RateLimiter, RateLimiter]:
 def ai_allowed() -> bool:
     per_visitor, whole_site = limiters()
     if not per_visitor.allow(st.session_state.visitor):
+        monitor.record("rate_limited")
         st.warning("You've asked a lot in a short time. Please wait a few minutes and try again.", icon="⏳")
         return False
     if not whole_site.allow("site"):
+        monitor.record("ai_limit")
         st.warning("PlainSpeak has reached its free daily limit. Please try again tomorrow, "
                    "or call 211 for help with your letter.", icon="⏳")
         return False
@@ -165,6 +171,17 @@ st.markdown("""<style>
 </style>""", unsafe_allow_html=True)
 
 
+def visitor_today() -> date:
+    """Today's date where the VISITOR is. The server runs on UTC, so after ~4 PM in California
+    its 'today' is already tomorrow, which would make the countdown one day short."""
+    for tz in (st.context.timezone, "America/Los_Angeles"):   # the visitor's, else the hackathon's (PST)
+        try:
+            return datetime.now(ZoneInfo(tz)).date()
+        except Exception:   # browser didn't say, or the server has no timezone data
+            continue
+    return date.today()
+
+
 def esc(s: str) -> str:
     """Make text safe to put inside HTML (so a letter can't inject code into the page)."""
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -219,6 +236,11 @@ def start_screen() -> None:
                 problems.append(f"Please add at most {MAX_PAGES} pages at a time.")
             for problem in problems:
                 st.error(problem, icon="🚫")
+            reported = st.session_state.setdefault("reported_uploads", set())
+            for p in pages:   # count each refused file once, not on every page refresh
+                if p.file_id not in reported and check_upload(p.getvalue(), p.type):
+                    reported.add(p.file_id)
+                    monitor.record("bad_upload")
             if st.button(f"Explain my letter ({len(pages)} page{'s' if len(pages) > 1 else ''})", type="primary",
                          key="go-photo", disabled=not has_api_key() or bool(problems), use_container_width=True):
                 st.session_state.request = {"files": [prepare_image(p.getvalue(), p.type) for p in pages]}
@@ -234,6 +256,7 @@ def start_screen() -> None:
             if pasted.strip():
                 clean, hidden = redact(pasted)
                 if hidden:
+                    monitor.record("ids_hidden")
                     st.session_state.notice = f"🔒 We hid {hidden} ID number(s) before sending your letter to the AI."
                 st.session_state.request = {"text": clean}
                 st.rerun()
@@ -268,10 +291,12 @@ def start_screen() -> None:
 # ---------- Run the AI ----------
 req = st.session_state.pop("request", None)   # take it out first, so a blocked request isn't retried forever
 if req is not None and ai_allowed():
-    with st.spinner("Reading your letter… this takes about 10–20 seconds."):
+    with st.spinner("Reading your letter… this usually takes a few seconds."):
         try:
             show_answer(analyze_letter(language, **req), language)
+            monitor.record("letter_ok")
         except AnalyzerError as e:
+            monitor.record(monitor.kind_of_error(str(e)))
             st.error(str(e), icon="🚫")
 
 
@@ -309,7 +334,7 @@ def show_result(a: LetterAnalysis, lang_name: str) -> None:
     # --- At a glance: urgency, countdown, first step ---
     icon = {"high": f"🔴 {t['urgent']}", "medium": f"🟠 {t['soon']}", "low": f"🟢 {t['not_urgent']}"}[a.urgency]
     glance = f"<b>{icon}</b> — {esc(a.urgency_reason)}"
-    nxt = next_deadline(a)
+    nxt = next_deadline(a, today=visitor_today())
     if nxt:
         days, d = nxt
         if days > 0:
@@ -335,7 +360,8 @@ def show_result(a: LetterAnalysis, lang_name: str) -> None:
         if audio:
             st.session_state.audio = (a.summary, audio)  # keep it so the player doesn't vanish on the next click
         else:
-            st.warning("Read-aloud needs an internet connection. Please try again.")
+            monitor.record("tts_failed")
+            st.warning("Read-aloud isn't working right now. Please try again in a moment.")
     saved_audio = st.session_state.get("audio")
     if saved_audio and saved_audio[0] == a.summary:
         st.audio(saved_audio[1], format="audio/mp3")
@@ -419,7 +445,10 @@ def show_result(a: LetterAnalysis, lang_name: str) -> None:
             with st.spinner("…"):
                 try:
                     answer = ask_question(a.original_text, redact(asked)[0], lang_name) if ai_allowed() else None
+                    if answer:
+                        monitor.record("question_ok")
                 except AnalyzerError as e:
+                    monitor.record(monitor.kind_of_error(str(e)))
                     st.error(str(e), icon="🚫")
         if answer:
             st.session_state.qa = [(asked, answer)] + st.session_state.get("qa", [])[:4]

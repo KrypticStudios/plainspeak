@@ -195,3 +195,31 @@ def test_calculated_dates_are_not_trusted():
     assert next_deadline(fake) is None                           # no countdown for a guessed date
     assert calendar_export.deadlines_to_ics([d for d in fake.deadlines
                                              if deadline_is_trustworthy(d, letter)]) is None
+
+
+def test_pdf_page_limit():
+    from io import BytesIO
+    from PIL import Image
+    from plainspeak.privacy import check_upload, pdf_page_count
+
+    def pdf(n):
+        buf = BytesIO()
+        pages = [Image.new("RGB", (50, 50), "white") for _ in range(n)]
+        pages[0].save(buf, format="PDF", save_all=True, append_images=pages[1:])
+        return buf.getvalue()
+
+    assert pdf_page_count(pdf(1)) == 1 and pdf_page_count(pdf(3)) == 3
+    assert check_upload(pdf(5), "application/pdf") is None
+    assert "more than 5 pages" in check_upload(pdf(6), "application/pdf")
+
+
+def test_monitor_records_kinds_not_content(caplog):
+    import logging
+    from plainspeak import monitor
+    with caplog.at_level(logging.INFO, logger="plainspeak"):
+        monitor.record("letter_ok")
+        monitor.record("Maria Lopez owes $1,450")        # anything unexpected is stored as a fixed word
+    assert "Maria" not in caplog.text and "1,450" not in caplog.text
+    assert monitor.counts()["ai_other"] >= 1
+    assert monitor.kind_of_error("The AI service is very busy right now.") == "ai_busy"
+    assert monitor.kind_of_error("The free AI limit was reached.") == "ai_limit"

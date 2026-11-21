@@ -38,6 +38,9 @@ A full account system (login plus an encrypted database) would let people keep l
 | Malicious page content (XSS) | All AI and letter text is HTML-escaped before display. Phone links use digits only. | `app.py` → `esc()` |
 | Fake or harmful uploads | Only real images (checked with Pillow) and PDFs (checked by file signature). Max 10 MB per file, 5 pages, 20,000 characters of text. Photos are re-encoded, which also strips hidden data like GPS location. | `privacy.py` → `check_upload()`, `images.py` |
 | Someone using up the free AI quota | 6 AI requests per visitor per 10 minutes, and a daily cap for the whole site. | `privacy.py` → `RateLimiter` |
+| Not knowing when something breaks | We count event *types* only ("letter_ok", "ai_busy", "bad_upload"…), never letter content, in the server log that only the owner can see. | `monitor.py` |
+| Huge PDFs | PDFs over 5 pages are refused. | `privacy.py` → `pdf_page_count()` |
+| A library update breaking the live site | Every dependency is pinned to the exact version we tested. | `requirements.txt` |
 | Leaking technical details | Error details and stack traces are hidden from visitors. Usage statistics are off. Cross-site request (XSRF) protection is on. | `.streamlit/config.toml` |
 | Leaked API key | The key is kept in `.env` or Cloud Secrets, which are git-ignored. | `.gitignore` |
 
@@ -45,6 +48,7 @@ A full account system (login plus an encrypted database) would let people keep l
 - **The free Gemini tier is not private.** Under [Google's Gemini API terms](https://ai.google.dev/gemini-api/terms), content sent on the free tier may be used to improve Google's products and may be read by human reviewers, and Google advises against sending sensitive information. That's why the demo tells people to use the example letters or cover personal details. **A real launch would use Gemini's paid tier**, where Google doesn't use prompts or responses to improve its products, or an on-device model (see below).
 - Redaction catches common ID formats in text. It can't read photos before they're sent, and it doesn't remove names or addresses, because explaining a letter needs some of that context.
 - The usage limits are per server and in memory. They reset when the app restarts.
+- Read-aloud sends the summary and steps (not the letter) to Google's text-to-speech service, and only when the user presses 🔊.
 - PlainSpeak explains letters. It does not give legal advice.
 
 ## Ideas for the future
