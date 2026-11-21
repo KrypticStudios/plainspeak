@@ -143,7 +143,7 @@ css = """
 .ps-low {border-color: #15803d; background: #f0fdf4;}
 .ps-quote {font-size: .9em; color: #334155; border-left: 3px solid #94a3b8; padding-left: .6rem; margin-top: .2rem;}
 .ps-warn {color: #b91c1c; font-weight: 600;}
-.ps-ok {color: #15803d; font-weight: 600;}
+.ps-ok {color: #166534; font-weight: 600;}
 </style>
 """
 if big_text:

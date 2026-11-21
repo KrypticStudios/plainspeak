@@ -53,6 +53,9 @@ We also run **real files through the actual upload button** in Chrome (`tests/e2
 
 Full results, the one miss, and what we changed because of the test: **[eval/RESULTS.md](eval/RESULTS.md)**. The test runner is `eval/run_eval.py` and the answer key is `eval/cases.json`.
 
+### Accessibility, checked
+We ran **axe-core**, the standard automated WCAG checker, on six real pages: the start screen, results, the AI-mistake demo, Arabic right-to-left, high contrast with large text, and Spanish. **0 WCAG 2.1 AA violations.** Every custom color pair also meets AA contrast (most meet AAA). Run `tests/a11y_audit.py`.
+
 ### Privacy and security
 On the public site, no letters are stored on disk; saved letters disappear when you close the page. ID numbers are hidden before text is sent to the AI, uploads are checked, usage is rate-limited, and the API key never reaches the browser. See **[SECURITY.md](SECURITY.md)** for the full design and its limits, including that this demo uses Gemini's free tier.
 
