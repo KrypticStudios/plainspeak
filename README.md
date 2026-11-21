@@ -4,8 +4,16 @@
 
 Built for **EvoHacks 2.0**, whose theme is *Projects for Social Good*.
 
+![PlainSpeak](docs/cover.jpg)
+
 ### 👉 Try it: **https://plainspeak.streamlit.app**
 No sign-up needed. Click one of the example letters, or paste or photograph a letter of your own. Please use made-up details, see [Privacy](#privacy-and-security).
+
+**One-click examples:** [eviction notice](https://plainspeak.streamlit.app/?example=eviction) · [the same in Spanish](https://plainspeak.streamlit.app/?example=eviction&lang=es) · [food benefits](https://plainspeak.streamlit.app/?example=benefits) · [hospital bill](https://plainspeak.streamlit.app/?example=hospital) · [watch it catch an AI mistake](https://plainspeak.streamlit.app/?example=eviction&mistake=1) · [high contrast + large text](https://plainspeak.streamlit.app/?example=benefits&contrast=1&bigtext=1)
+
+| At a glance | Every fact checked against the letter | On a phone |
+|---|---|---|
+| ![results](docs/results.jpg) | ![catches AI mistakes](docs/catches-ai-mistakes.jpg) | ![phone](docs/phone.jpg) |
 
 ## The problem
 Eviction notices, hospital bills and benefits renewals are written in legal, bureaucratic language. People who are still learning English, elderly people and people who struggle with reading often can't tell what the letter is asking for, or how urgent it is. When they miss a deadline, they can lose their home, their food benefits, or end up with a bill in collections, even though help was often offered in the same letter.
@@ -40,6 +48,8 @@ We wrote **19 test letters** modeled on real public templates: the CFPB debt-col
 | Reading level | **grade 10.0 → 4.9** |
 | Time per letter (median) | **3.3 s** |
 | Tricky cases: a letter that tries to trick the AI, a non-letter | both handled ✅ |
+
+We also run **real files through the actual upload button** in Chrome (`tests/e2e_uploads.py`): a 4000×3000 phone photo, a scanned PDF, a PNG and a 2-page letter are explained, and six kinds of bad file (fake image, half-downloaded photo, 30,000-pixel image, 6-page PDF, 6 photos, good + bad page mixed) are refused with a clear message. **10/10 pass on the live site.**
 
 Full results, the one miss, and what we changed because of the test: **[eval/RESULTS.md](eval/RESULTS.md)**. The test runner is `eval/run_eval.py` and the answer key is `eval/cases.json`.
 
