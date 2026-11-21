@@ -19,6 +19,10 @@ def prepare_image(data: bytes, mime_type: str) -> tuple[bytes, str]:
     try:
         img = Image.open(BytesIO(data))
         img = ImageOps.exif_transpose(img)        # fix sideways phone photos
+        if img.mode in ("RGBA", "LA", "P"):       # see-through parts become WHITE paper, not black
+            img = img.convert("RGBA")
+            white = Image.new("RGBA", img.size, "white")
+            img = Image.alpha_composite(white, img)
         img = img.convert("RGB")                  # JPEG has no transparency
         img.thumbnail((MAX_SIDE, MAX_SIDE))       # shrink, keeping the shape
         out = BytesIO()

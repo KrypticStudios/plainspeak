@@ -18,6 +18,7 @@ LANGUAGES = {
 }
 
 RTL_LANGUAGES = {"ar"}  # written right-to-left
+MAX_CHARS = 3000       # read-aloud covers the summary, deadline and steps; never a whole letter
 
 
 def text_to_mp3(text: str, lang_code: str) -> bytes | None:
@@ -25,9 +26,12 @@ def text_to_mp3(text: str, lang_code: str) -> bytes | None:
     from gtts import gTTS
     from gtts.tts import gTTSError
 
+    text = " ".join(text.split())[:MAX_CHARS]
+    if not text:
+        return None
     try:
         buf = BytesIO()
         gTTS(text=text, lang=lang_code).write_to_fp(buf)
         return buf.getvalue()
-    except (gTTSError, ValueError, OSError):
+    except (gTTSError, ValueError, OSError, AssertionError):
         return None

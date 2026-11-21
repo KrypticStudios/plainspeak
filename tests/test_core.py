@@ -164,10 +164,10 @@ def test_upload_checks():
     buf = BytesIO()
     Image.new("RGB", (10, 10)).save(buf, format="PNG")
     assert check_upload(buf.getvalue(), "image/png") is None
-    assert check_upload(b"%PDF-1.7 ...", "application/pdf") is None
-    assert check_upload(b"<script>evil</script>", "image/png")
-    assert check_upload(b"MZ\x90\x00", "application/pdf")
-    assert check_upload(b"x" * (11 * 1024 * 1024), "image/png")
+    assert check_upload(b"%PDF-1.7 ...", "application/pdf") == "pdf_unreadable"
+    assert check_upload(b"<script>evil</script>", "image/png") == "bad_image"
+    assert check_upload(b"MZ\x90\x00", "application/pdf") == "not_pdf"
+    assert check_upload(b"x" * (11 * 1024 * 1024), "image/png") == "too_big"
 
 
 def test_session_store_is_per_visitor_and_deletable():
@@ -210,7 +210,7 @@ def test_pdf_page_limit():
 
     assert pdf_page_count(pdf(1)) == 1 and pdf_page_count(pdf(3)) == 3
     assert check_upload(pdf(5), "application/pdf") is None
-    assert "more than 5 pages" in check_upload(pdf(6), "application/pdf")
+    assert check_upload(pdf(6), "application/pdf") == "too_many_pages"
 
 
 def test_monitor_records_kinds_not_content(caplog):
@@ -221,8 +221,8 @@ def test_monitor_records_kinds_not_content(caplog):
         monitor.record("Maria Lopez owes $1,450")        # anything unexpected is stored as a fixed word
     assert "Maria" not in caplog.text and "1,450" not in caplog.text
     assert monitor.counts()["ai_other"] >= 1
-    assert monitor.kind_of_error("The AI service is very busy right now.") == "ai_busy"
-    assert monitor.kind_of_error("The free AI limit was reached.") == "ai_limit"
+    assert monitor.kind_of_error("busy") == "ai_busy" and monitor.kind_of_error("limit") == "ai_limit"
+    assert monitor.kind_of_error("setup") == "ai_key" and monitor.kind_of_error("unreadable") == "ai_other"
 
 
 def test_broken_and_giant_pictures_are_refused():
@@ -236,7 +236,7 @@ def test_broken_and_giant_pictures_are_refused():
     assert check_upload(good[: len(good) // 2], "image/jpeg")         # half a photo (download cut off)
     giant = BytesIO()
     Image.new("1", (30_000, 30_000)).save(giant, format="PNG")        # small file, huge picture
-    assert "too large" in check_upload(giant.getvalue(), "image/png")
+    assert check_upload(giant.getvalue(), "image/png") == "too_large"
 
 
 def test_start_screen_text_complete_in_every_language():
@@ -302,3 +302,67 @@ def test_share_message_and_links():
     assert links["WhatsApp"].startswith("https://wa.me/?text=") and unquote(links["WhatsApp"]).endswith(
         "https://plainspeak.streamlit.app)")
     assert links["SMS"].startswith("sms:") and links["Email"].startswith("mailto:?subject=")
+
+
+def test_whole_letter_limits():
+    from io import BytesIO
+    from PIL import Image
+    from plainspeak.privacy import check_letter
+
+    def pdf(n):
+        buf = BytesIO()
+        pages = [Image.new("RGB", (50, 50), "white") for _ in range(n)]
+        pages[0].save(buf, format="PDF", save_all=True, append_images=pages[1:])
+        return buf.getvalue()
+    assert check_letter([(pdf(3), "application/pdf"), (b"img", "image/jpeg")]) == []
+    assert check_letter([(pdf(3), "application/pdf"), (pdf(3), "application/pdf")]) == ["too_many_pages"]
+
+
+def test_pdf_with_bookmarks_is_not_miscounted():
+    from io import BytesIO
+    from PIL import Image
+    from pypdf import PdfWriter
+    from plainspeak.privacy import pdf_page_count
+    buf = BytesIO()
+    Image.new("RGB", (50, 50), "white").save(buf, format="PDF")
+    w = PdfWriter(clone_from=BytesIO(buf.getvalue()))
+    parent = w.add_outline_item("Chapter", 0)
+    for i in range(9):
+        w.add_outline_item(f"Part {i}", 0, parent=parent)   # adds "/Count 9" to the outline
+    out = BytesIO()
+    w.write(out)
+    assert pdf_page_count(out.getvalue()) == 1
+
+
+def test_new_checks_catch_subtle_mistakes():
+    from plainspeak.checks import date_written_in, deadline_is_trustworthy, phone_in_letter, quote_found
+    letter = demo.sample_text("Eviction notice (rent)")
+    assert not date_written_in("2026-12-04", "pay by 14 december 2026")      # 14 is not 4
+    assert not date_written_in("2026-01-04", "due 11/4/2026")
+    assert not date_written_in("2026-13-01", "anything")                       # no crash on a bad month
+    assert date_written_in("2026-12-04", "Dec. 4th, 2026") and date_written_in("2026-12-04", "le 4 décembre 2026")
+    real_sentence_wrong_date = Deadline(date="2026-11-20", what="Pay",
+                                        source_quote="Payment must be made on or before December 4, 2026.")
+    assert not deadline_is_trustworthy(real_sentence_wrong_date, letter)
+    assert not quote_found("TOTAL AMOUNT DUE: $1,950.00", letter)              # a changed number is caught
+    assert phone_in_letter("555.013.7700", letter) and not phone_in_letter("(555) 999-0000", letter)
+    for sample in demo.SAMPLES:                                                # both demo mistakes are caught
+        a = demo.with_simulated_mistake(demo.demo_analysis(sample, "English"))
+        assert [deadline_is_trustworthy(d, a.original_text) for d in a.deadlines[:2]] == [False, False]
+
+
+def test_transparent_png_becomes_white_not_black():
+    from io import BytesIO
+    from PIL import Image, ImageDraw
+    from plainspeak.images import prepare_image
+    im = Image.new("RGBA", (200, 100), (0, 0, 0, 0))
+    ImageDraw.Draw(im).text((10, 40), "HELLO", fill=(0, 0, 0, 255))
+    buf = BytesIO()
+    im.save(buf, "PNG")
+    out, _ = prepare_image(buf.getvalue(), "image/png")
+    assert Image.open(BytesIO(out)).convert("L").getextrema()[1] > 200   # there is white paper
+
+
+def test_read_aloud_with_nothing_to_say_does_not_crash():
+    from plainspeak.speech import text_to_mp3
+    assert text_to_mp3("   ", "en") is None

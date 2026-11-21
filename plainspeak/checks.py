@@ -1,52 +1,121 @@
 """Safety checks we run on the AI's answer with plain Python (no AI).
 
-AI can "hallucinate" (make things up). So for every deadline, step and amount,
-we check that its quote really appears in the letter. If it doesn't, the app
-shows a warning instead of trusting it.
+AI can "hallucinate" (make things up). So for every deadline, step and amount, the AI must quote the
+letter, and this file checks that:
+  1. the quote is really in the letter (small differences in wording are allowed, but every NUMBER
+     in the quote must match exactly, so "$930" can't quietly become "$980"),
+  2. a deadline's date is really written in the letter, right in or next to its own sentence
+     (not calculated by the AI, and not borrowed from somewhere else in the letter),
+  3. a phone number we show as tap-to-call is really in the letter.
 """
 
 import re
+from datetime import date
 from difflib import SequenceMatcher
+from functools import lru_cache
 
 import textstat
 
+# ---------------------------------------------------------------- quotes
+
 
 def _normalize(s: str) -> str:
-    """Lowercase and squash spaces/punctuation so small OCR differences don't matter."""
+    """Lowercase and squash spaces/punctuation so small differences in a photo reading don't matter."""
     s = s.lower().replace("’", "'").replace("“", '"').replace("”", '"')
     s = re.sub(r"[^\w$%./,:-]+", " ", s)
     return re.sub(r"\s+", " ", s).strip()
 
 
-def quote_found(quote: str, letter_text: str, threshold: float = 0.85) -> bool:
-    """True if `quote` appears in `letter_text` (exactly, or almost exactly)."""
-    q, text = _normalize(quote), _normalize(letter_text)
+def _numbers(s: str) -> list[str]:
+    """Every number in a piece of text, e.g. '$1,450.00 by 12/04' -> ['1450.00', '12', '04']."""
+    return [n.replace(",", "") for n in re.findall(r"\d[\d,]*(?:\.\d+)?", s)]
+
+
+@lru_cache(maxsize=4096)
+def quote_location(quote: str, letter_text: str, threshold: float = 0.85) -> tuple[int, int] | None:
+    """Where `quote` is in the letter, as (first word, last word) positions, or None if it isn't there."""
+    q, words = _normalize(quote), _normalize(letter_text).split()
     if not q:
-        return False
-    if q in text:
-        return True
-    # Slide a window the size of the quote across the letter and keep the best match.
-    words, q_len = text.split(), len(q.split())
-    best = 0.0
-    for i in range(max(1, len(words) - q_len + 1)):
-        window = " ".join(words[i:i + q_len])
-        best = max(best, SequenceMatcher(None, q, window).ratio())
-        if best >= threshold:
-            return True
-    return False
-
-
-def reading_grade(text: str) -> float | None:
-    """US school grade level needed to read `text` (Flesch-Kincaid). English only."""
-    if len(text.split()) < 10:
         return None
-    return round(max(0.0, textstat.flesch_kincaid_grade(text)), 1)
+    q_words = q.split()
+    n = len(q_words)
+    text = " ".join(words)
+    if q in text:  # exact match: find which word it starts at
+        start = len(text[: text.index(q)].split())
+        return start, start + n
+    needed = _numbers(q)
+    for i in range(max(1, len(words) - n + 1)):
+        window = " ".join(words[i:i + n])
+        if SequenceMatcher(None, q, window).ratio() >= threshold and \
+                all(num in _numbers(window) for num in needed):   # wording may differ a little; numbers may not
+            return i, i + n
+    return None
 
 
-MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october",
-          "november", "december"]
-MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre",
-         "noviembre", "diciembre"]
+def quote_found(quote: str, letter_text: str) -> bool:
+    """True if `quote` appears in `letter_text` (exactly, or almost exactly with every number the same)."""
+    return quote_location(quote, letter_text) is not None
+
+
+# ---------------------------------------------------------------- dates
+
+MONTH_NAMES = {
+    1: ["january", "jan", "enero", "janvier", "janeiro", "enero"],
+    2: ["february", "feb", "febrero", "février", "fevrier", "fevereiro", "pebrero"],
+    3: ["march", "mar", "marzo", "mars", "março", "marco", "marso"],
+    4: ["april", "apr", "abril", "avril", "abril"],
+    5: ["may", "mayo", "mai", "maio"],
+    6: ["june", "jun", "junio", "juin", "junho", "hunyo"],
+    7: ["july", "jul", "julio", "juillet", "julho", "hulyo"],
+    8: ["august", "aug", "agosto", "août", "aout", "agosto"],
+    9: ["september", "sept", "sep", "septiembre", "setiembre", "septembre", "setembro", "setyembre"],
+    10: ["october", "oct", "octubre", "octobre", "outubro", "oktubre"],
+    11: ["november", "nov", "noviembre", "novembre", "novembro", "nobyembre"],
+    12: ["december", "dec", "diciembre", "décembre", "decembre", "dezembro", "disyembre"],
+}
+_MONTH = {name: num for num, names in MONTH_NAMES.items() for name in names}
+_MONTH_RE = "|".join(sorted(map(re.escape, _MONTH), key=len, reverse=True))
+_DAY = r"(\d{1,2})(?:st|nd|rd|th|er)?"
+_DATE_PATTERNS = [
+    # 2026-12-04
+    (re.compile(r"(?<!\d)(\d{4})-(\d{1,2})-(\d{1,2})(?!\d)"), "ymd"),
+    # 12/04/2026, 12/4/26, 12-04-2026 (US order, as on US letters)
+    (re.compile(r"(?<![\d/])(\d{1,2})[/-](\d{1,2})[/-](\d{4}|\d{2})(?![\d/])"), "mdy"),
+    # December 4, 2026 / Dec. 4th 2026
+    (re.compile(rf"\b({_MONTH_RE})\.?\s+{_DAY},?\s+(\d{{4}})\b"), "Mdy"),
+    # 4 December 2026 / 4 de diciembre de 2026 / 4 décembre 2026 / 4 de dezembro de 2026
+    (re.compile(rf"(?<!\d){_DAY}\s+(?:de\s+)?({_MONTH_RE})\.?,?\s+(?:de\s+|del\s+)?(\d{{4}})\b"), "dMy"),
+]
+
+
+@lru_cache(maxsize=4096)
+def dates_in(text: str) -> frozenset[date]:
+    """Every real calendar date written in `text`."""
+    t = " ".join(text.lower().split())
+    found = set()
+    for pattern, order in _DATE_PATTERNS:
+        for m in pattern.finditer(t):
+            try:
+                if order == "ymd":
+                    y, mo, d = int(m[1]), int(m[2]), int(m[3])
+                elif order == "mdy":
+                    mo, d, y = int(m[1]), int(m[2]), int(m[3])
+                    y += 2000 if y < 100 else 0
+                elif order == "Mdy":
+                    mo, d, y = _MONTH[m[1]], int(m[2]), int(m[3])
+                else:
+                    d, mo, y = int(m[1]), _MONTH[m[2]], int(m[3])
+                found.add(date(y, mo, d))
+            except (ValueError, KeyError):
+                continue   # not a real date (e.g. month 13), ignore it
+    return frozenset(found)
+
+
+def _parse_iso(value: str) -> date | None:
+    try:
+        return date.fromisoformat(value.strip())
+    except (ValueError, AttributeError):
+        return None
 
 
 def date_written_in(iso: str, letter_text: str) -> bool:
@@ -56,17 +125,49 @@ def date_written_in(iso: str, letter_text: str) -> bool:
     date itself, but that guess can be wrong (it depends on when the person got the letter), so we
     never put a calculated date in the countdown or the calendar.
     """
-    try:
-        y, m, d = (int(x) for x in iso.strip().split("-"))
-    except ValueError:
+    d = _parse_iso(iso)
+    return d is not None and d in dates_in(letter_text)
+
+
+def deadline_is_trustworthy(deadline, letter_text: str, nearby_words: int = 15) -> bool:
+    """The quote is really in the letter AND the date is written in that quote or right next to it.
+
+    "Next to it" matters: a letter has many dates (the date it was sent, the service date...). The
+    AI could pair a real sentence with the wrong one of those dates; this catches that.
+    """
+    d = _parse_iso(deadline.date)
+    where = quote_location(deadline.source_quote, letter_text)
+    if d is None or where is None:
         return False
-    t = " ".join(letter_text.lower().split())
-    forms = [f"{y}-{m:02d}-{d:02d}", f"{m:02d}/{d:02d}/{y}", f"{m}/{d}/{y}", f"{m:02d}/{d:02d}/{y % 100:02d}",
-             f"{MONTHS[m - 1]} {d}, {y}", f"{MONTHS[m - 1]} {d} {y}", f"{d} {MONTHS[m - 1]} {y}",
-             f"{d} de {MESES[m - 1]} de {y}", f"{d} de {MESES[m - 1]} del {y}"]
-    return any(f in t for f in forms)
+    quoted_dates = dates_in(deadline.source_quote)
+    if quoted_dates:                 # the sentence has a date: the deadline must be THAT date
+        return d in quoted_dates
+    words = _normalize(letter_text).split()
+    start, end = max(0, where[0] - nearby_words), where[1] + nearby_words
+    return d in dates_in(" ".join(words[start:end]))
 
 
-def deadline_is_trustworthy(deadline, letter_text: str) -> bool:
-    """Its quote is really in the letter AND its date is written in the letter (not calculated)."""
-    return quote_found(deadline.source_quote, letter_text) and date_written_in(deadline.date, letter_text)
+# ---------------------------------------------------------------- phone numbers
+
+
+def phone_in_letter(phone: str, letter_text: str) -> bool:
+    """True if this phone number (any formatting) is written in the letter."""
+    digits = re.sub(r"\D", "", phone)
+    if len(digits) < 3:
+        return False
+    if len(digits) <= 4:            # short numbers like 211 or 711: must appear as a whole number
+        return re.search(rf"(?<!\d){digits}(?!\d)", letter_text) is not None
+    for candidate in re.findall(r"\+?\d[\d\s().-]{5,}\d", letter_text):
+        if re.sub(r"\D", "", candidate).endswith(digits[-10:]):
+            return True
+    return False
+
+
+# ---------------------------------------------------------------- reading level
+
+
+def reading_grade(text: str) -> float | None:
+    """US school grade level needed to read `text` (Flesch-Kincaid). English only."""
+    if len(text.split()) < 10:
+        return None
+    return round(max(0.0, textstat.flesch_kincaid_grade(text)), 1)

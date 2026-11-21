@@ -14,8 +14,10 @@ def parse_date(value: str) -> date | None:
         return None
 
 
-def deadlines_to_ics(deadlines: list[Deadline], title_prefix: str = "PlainSpeak") -> bytes | None:
-    """Return .ics file bytes, or None if no deadline has a real date."""
+def deadlines_to_ics(deadlines: list[Deadline], title_prefix: str = "PlainSpeak",
+                     today: date | None = None) -> bytes | None:
+    """Return .ics file bytes, or None if no deadline has a real, upcoming date."""
+    import hashlib
     cal = Calendar()
     cal.add("prodid", "-//PlainSpeak//EvoHacks//EN")
     cal.add("version", "2.0")
@@ -23,10 +25,12 @@ def deadlines_to_ics(deadlines: list[Deadline], title_prefix: str = "PlainSpeak"
     count = 0
     for i, d in enumerate(deadlines):
         day = parse_date(d.date)
-        if not day:
+        if not day or (today and day < today):   # no date, or already passed
             continue
         event = Event()
-        event.add("uid", f"plainspeak-{day.isoformat()}-{i}@plainspeak")
+        # A unique ID per deadline, so two letters with a deadline on the same day don't overwrite each other.
+        uid = hashlib.sha256(f"{day}|{d.what}|{d.source_quote}".encode()).hexdigest()[:20]
+        event.add("uid", f"{uid}@plainspeak")
         event.add("summary", f"{title_prefix}: {d.what}")
         event.add("dtstart", day)                      # all-day event
         event.add("dtend", day + timedelta(days=1))

@@ -200,12 +200,27 @@ def demo_analysis(sample: str, language: str) -> LetterAnalysis | None:
 
 
 def with_simulated_mistake(a: LetterAnalysis) -> LetterAnalysis:
-    """For the demo: add a made-up deadline, like an AI hallucination would, to show the quote check catching it."""
+    """For the demo: add two mistakes like an AI might make, to show PlainSpeak's checks catching them.
+
+    1. An invented deadline whose "quote" isn't in the letter at all (easy to catch).
+    2. A sneaky one: a REAL sentence from the letter, paired with the WRONG date (another date that
+       does appear in the letter, e.g. the day it was sent). Only the "date must be next to its
+       sentence" check catches this one.
+    """
+    from .checks import dates_in, deadline_is_trustworthy
     from .schema import Deadline
 
-    fake = Deadline(date="2026-11-28", what="⚠ SIMULATED AI MISTAKE: pay a $200 late fee",
-                    source_quote="A late fee of $200.00 will be charged after November 28, 2026.")
-    return a.model_copy(update={"deadlines": [fake, *a.deadlines]})
+    invented = Deadline(date="2026-11-28", what="⚠ SIMULATED AI MISTAKE 1: pay a $200 late fee",
+                        source_quote="A late fee of $200.00 will be charged after November 28, 2026.")
+    mistakes = [invented]
+    real = next((d for d in a.deadlines if deadline_is_trustworthy(d, a.original_text)), None)
+    if real:
+        other_dates = sorted(x for x in dates_in(a.original_text) if x.isoformat() != real.date)
+        if other_dates:
+            mistakes.append(Deadline(date=other_dates[0].isoformat(),
+                                     what=f"⚠ SIMULATED AI MISTAKE 2: {real.what}",
+                                     source_quote=real.source_quote))
+    return a.model_copy(update={"deadlines": [*mistakes, *a.deadlines]})
 
 
 # Ready-made answers to suggested questions, so "Ask a question" works in the demo with no AI key.

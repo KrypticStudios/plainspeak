@@ -104,7 +104,8 @@ def run() -> int:
                     continue
                 page.wait_for_timeout(1000)
                 text = page.inner_text("body")
-                ok, bad = text.count("found in your letter"), text.count("could not find these words")
+                ok = text.count("found in your letter") + text.count("found in what we read from your photo")
+                bad = text.count("could not find these words")
                 title = text.split("📄")[1].splitlines()[0].strip() if "📄" in text else "?"
                 print(f"OK   {case}: '{title}' | quotes verified {ok}, not found {bad} | "
                       f"countdown: {'days left' in text}")

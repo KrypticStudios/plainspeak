@@ -3,7 +3,7 @@
 from datetime import date
 from html import escape
 
-from .checks import deadline_is_trustworthy, quote_found
+from .checks import deadline_is_trustworthy, phone_in_letter, quote_found
 from .schema import LetterAnalysis
 from .ui_text import friendly_date, labels
 
@@ -30,17 +30,26 @@ def next_deadline(a: LetterAnalysis, today: date | None = None):
 def summary_html(a: LetterAnalysis, lang_code: str) -> str:
     """A simple, printable HTML page with the summary, dates, steps and contacts."""
     t = labels(lang_code)
-    direction = "rtl" if lang_code == "ar" else "ltr"
-    deadlines = "".join(
-        f"<li><b>{escape(friendly_date(d.date, lang_code) or t['no_date'])}</b> — {escape(d.what)}</li>"
-        if deadline_is_trustworthy(d, a.original_text)
-        else f"<li>{escape(d.what)} ({escape(t['estimated'])})</li>"
-        for d in a.deadlines if quote_found(d.source_quote, a.original_text))
-    steps = "".join(f"<li>☐ {escape(s.step)}</li>" for s in a.actions)
-    money = "".join(f"<li><b>{escape(m.amount)}</b> — {escape(m.what)}</li>" for m in a.money)
+    from .speech import RTL_LANGUAGES
+    direction = "rtl" if lang_code in RTL_LANGUAGES else "ltr"
+    letter = a.original_text
+    warn = f" <b>⚠ {escape(t['not_found'])}</b>"   # the printout is as careful as the screen
+
+    def dl(d) -> str:
+        if deadline_is_trustworthy(d, letter):
+            return f"<li><b>{escape(friendly_date(d.date, lang_code))}</b> — {escape(d.what)}</li>"
+        if quote_found(d.source_quote, letter):
+            return f"<li>{escape(d.what)} ({escape(t['estimated'])})</li>"
+        return f"<li>{escape(d.what)}{warn}</li>"
+    deadlines = "".join(dl(d) for d in a.deadlines)
+    steps = "".join(f"<li>☐ {escape(s.step)}{'' if quote_found(s.source_quote, letter) else warn}</li>"
+                    for s in a.actions)
+    money = "".join(f"<li><b>{escape(m.amount)}</b> — {escape(m.what)}"
+                    f"{'' if quote_found(m.source_quote, letter) else warn}</li>" for m in a.money)
+    unclear = "".join(f"<li>{escape(p)}</li>" for p in a.unclear_points)
     contacts = "".join(
         f"<li><b>{escape(c.name)}</b> — {escape(c.why)}"
-        + (f"<br>📞 {escape(c.phone)}" if c.phone else "")
+        + (f"<br>📞 {escape(c.phone)}" + ("" if phone_in_letter(c.phone, letter) else warn) if c.phone else "")
         + (f"<br>✉️ {escape(c.email)}" if c.email else "")
         + (f"<br>📍 {escape(c.address)}" if c.address else "") + "</li>"
         for c in a.contacts)
@@ -64,6 +73,7 @@ def summary_html(a: LetterAnalysis, lang_code: str) -> str:
 <p><small>{escape(t['from'])}: {escape(a.sender)}</small></p>
 <h2>{escape(t['means'])}</h2><p class="summary">{escape(a.summary)}</p>
 {section(t['dates'], deadlines)}{section(t['todo'], steps)}{section(t['money'], money)}{section(t['contact'], contacts)}
+{section(t['not_sure'], unclear)}
 {help_line}
 <p><small>Made with PlainSpeak. This explains a letter; it is not legal or medical advice.</small></p>
 </body></html>"""
@@ -74,11 +84,13 @@ def share_text(a: LetterAnalysis, lang_code: str, today: date | None = None) -> 
     t = labels(lang_code)
     lines = [f"📬 {a.document_type}", a.summary]
     nxt = next_deadline(a, today)
-    if nxt:
+    if nxt and nxt[0] >= 0:
         lines.append(f"⏰ {t['next_deadline']}: {friendly_date(nxt[1].date, lang_code)} — {nxt[1].what}")
+    elif nxt:   # the only dates in the letter have already passed
+        lines.append(f"⏰ {friendly_date(nxt[1].date, lang_code)} — {t['passed']}")
     if a.actions:
         lines.append(f"👉 {t['first_step']}: {a.actions[0].step}")
-    phones = [f"{c.name}: {c.phone}" for c in a.contacts if c.phone][:2]
+    phones = [f"{c.name}: {c.phone}" for c in a.contacts if c.phone and phone_in_letter(c.phone, a.original_text)][:2]
     if phones:
         lines.append("☎️ " + " · ".join(phones))
     lines.append("(PlainSpeak — https://plainspeak.streamlit.app)")

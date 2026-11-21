@@ -65,36 +65,53 @@ class RateLimiter:
             if len(hits) >= self.limit:
                 return False
             hits.append(now)
+            if len(self._hits) > 5000:   # forget visitors who haven't been back for a while
+                for k in [k for k, h in self._hits.items() if not h or now - h[-1] > self.window]:
+                    del self._hits[k]
             return True
 
 
-MAX_PAGES = 5
-MAX_BYTES = 10 * 1024 * 1024  # 10 MB per file
+MAX_PAGES = 5                     # pages per letter, counting every page of every file
+MAX_BYTES = 10 * 1024 * 1024      # 10 MB per file
+MAX_TOTAL_BYTES = 20 * 1024 * 1024  # 20 MB for the whole letter (Google's limit for files sent this way)
 MAX_TEXT_CHARS = 20_000
-MAX_PIXELS = 40_000_000  # about 4x a 12-megapixel phone photo
+MAX_PIXELS = 40_000_000           # about 4x a 12-megapixel phone photo
+
+# Every upload problem has a short code. The app shows it in the reader's language (ui_start.py "up_*").
+UPLOAD_PROBLEMS = {
+    "too_big": "That file is too big. Please use a file under 10 MB.",
+    "not_pdf": "That doesn't look like a real PDF file.",
+    "pdf_unreadable": "We couldn't open that PDF. Please try a photo instead.",
+    "too_large": "That picture is too large. Please use a normal phone photo.",
+    "bad_image": "We couldn't open that picture. Please try a JPG or PNG photo.",
+    "wrong_type": "Please upload a photo (JPG or PNG) or a PDF.",
+    "too_many_pages": f"Please add at most {MAX_PAGES} pages at a time (this counts every page of every file).",
+    "too_much_data": "These files are too big together. Please use fewer or smaller files.",
+}
 
 
-def pdf_page_count(data: bytes) -> int:
-    """Roughly count the pages in a PDF without any extra library.
+def pdf_page_count(data: bytes) -> int | None:
+    """How many pages a PDF has (using the pypdf library), or None if it can't be read."""
+    from io import BytesIO
 
-    PDFs list each page as "/Type /Page" and the total as "/Count N". We take the larger of the two,
-    so a PDF can't hide extra pages from us.
-    """
-    pages = len(re.findall(rb"/Type\s*/Page(?!s)", data))
-    counts = [int(n) for n in re.findall(rb"/Count\s+(\d+)", data)]
-    return max([pages, *counts])
+    from pypdf import PdfReader
+    try:
+        return len(PdfReader(BytesIO(data)).pages)
+    except Exception:   # broken, encrypted or fake PDF
+        return None
 
 
 def check_upload(data: bytes, mime_type: str) -> str | None:
-    """Return an error message if the file isn't a normal image or PDF, else None."""
+    """Return a problem code (see UPLOAD_PROBLEMS) if the file isn't a normal image or PDF, else None."""
     if len(data) > MAX_BYTES:
-        return "That file is too big. Please use a file under 10 MB."
+        return "too_big"
     if mime_type == "application/pdf":
         if data[:5] != b"%PDF-":
-            return "That doesn't look like a real PDF file."
-        if pdf_page_count(data) > MAX_PAGES:
-            return f"That PDF has more than {MAX_PAGES} pages. Please upload only the pages of your letter."
-        return None
+            return "not_pdf"
+        pages = pdf_page_count(data)
+        if pages is None:
+            return "pdf_unreadable"
+        return "too_many_pages" if pages > MAX_PAGES else None
     if mime_type.startswith("image/"):
         from io import BytesIO
 
@@ -102,12 +119,23 @@ def check_upload(data: bytes, mime_type: str) -> str | None:
         try:
             img = Image.open(BytesIO(data))
             if img.width * img.height > MAX_PIXELS:   # a tiny file can claim to be gigantic
-                return "That picture is too large. Please use a normal phone photo."
+                return "too_large"
             img.verify()                               # checks it's really an image, without running anything
             Image.open(BytesIO(data)).load()           # and that the whole picture is there (not cut off)
             return None
         except Image.DecompressionBombError:
-            return "That picture is too large. Please use a normal phone photo."
+            return "too_large"
         except (UnidentifiedImageError, OSError, SyntaxError, ValueError):
-            return "We couldn't open that picture. Please try a JPG or PNG photo."
-    return "Please upload a photo (JPG or PNG) or a PDF."
+            return "bad_image"
+    return "wrong_type"
+
+
+def check_letter(files: list[tuple[bytes, str]]) -> list[str]:
+    """Problems with the letter as a whole: too many pages in total, or too much data in total."""
+    problems = []
+    pages = sum((pdf_page_count(d) or 0) if m == "application/pdf" else 1 for d, m in files)
+    if pages > MAX_PAGES:
+        problems.append("too_many_pages")
+    if sum(len(d) for d, _ in files) > MAX_TOTAL_BYTES:
+        problems.append("too_much_data")
+    return problems

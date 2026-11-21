@@ -47,13 +47,6 @@ def counts() -> dict[str, int]:
         return dict(_counts)
 
 
-def kind_of_error(message: str) -> str:
-    """Turn one of our friendly AnalyzerError messages into an event word."""
-    m = message.lower()
-    if "busy" in m or "no ai model" in m:
-        return "ai_busy"
-    if "limit" in m:
-        return "ai_limit"
-    if "key" in m:
-        return "ai_key"
-    return "ai_other"
+def kind_of_error(kind: str) -> str:
+    """Turn an AnalyzerError's kind ("busy", "limit", ...) into an event word."""
+    return {"busy": "ai_busy", "limit": "ai_limit", "setup": "ai_key"}.get(kind, "ai_other")

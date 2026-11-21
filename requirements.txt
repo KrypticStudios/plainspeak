@@ -8,4 +8,4 @@ icalendar==7.3.2
 pillow==13.0.0
 textstat==0.7.13
 babel==2.18.0
-pytest==9.2.0
+pypdf==7.1.1

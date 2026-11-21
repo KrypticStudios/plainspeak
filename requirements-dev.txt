@@ -1,0 +1,4 @@
+# Only needed for testing, not for running the app
+-r requirements.txt
+pytest==9.2.0
+playwright

@@ -1,10 +1,12 @@
 """Saves past letters in a small database (SQLite) so users can come back to them.
 
-Every letter is stored with an `owner`. Each visitor only ever sees their own
-letters, so when the app is on the internet, nobody can see anyone else's.
+On the public website we use SessionStore: letters live only in that visitor's session, in the
+server's memory, and are gone when they close the page. DiskStore (a file) is only for running
+PlainSpeak on your own computer, where you are the only user.
 """
 
 import sqlite3
+from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 
@@ -24,15 +26,14 @@ def _connect(db_path: Path = DB_PATH) -> sqlite3.Connection:
                analysis_json TEXT NOT NULL,
                owner TEXT NOT NULL DEFAULT 'local')"""
     )
-    try:  # older databases were made before the owner column existed
+    columns = [row[1] for row in conn.execute("PRAGMA table_info(letters)")]
+    if "owner" not in columns:   # older databases were made before the owner column existed
         conn.execute("ALTER TABLE letters ADD COLUMN owner TEXT NOT NULL DEFAULT 'local'")
-    except sqlite3.OperationalError:
-        pass
     return conn
 
 
 def save(analysis: LetterAnalysis, language: str, owner: str, db_path: Path = DB_PATH) -> int:
-    with _connect(db_path) as conn:
+    with closing(_connect(db_path)) as conn, conn:
         cur = conn.execute(
             "INSERT INTO letters (saved_at, language, document_type, analysis_json, owner) VALUES (?, ?, ?, ?, ?)",
             (datetime.now().isoformat(timespec="minutes"), language, analysis.document_type,
@@ -42,7 +43,7 @@ def save(analysis: LetterAnalysis, language: str, owner: str, db_path: Path = DB
 
 
 def list_recent(owner: str, limit: int = 10, db_path: Path = DB_PATH) -> list[tuple[int, str, str, str]]:
-    with _connect(db_path) as conn:
+    with closing(_connect(db_path)) as conn:
         return conn.execute(
             "SELECT id, saved_at, language, document_type FROM letters WHERE owner = ? ORDER BY id DESC LIMIT ?",
             (owner, limit),
@@ -50,14 +51,19 @@ def list_recent(owner: str, limit: int = 10, db_path: Path = DB_PATH) -> list[tu
 
 
 def load(letter_id: int, owner: str, db_path: Path = DB_PATH) -> tuple[LetterAnalysis, str] | None:
-    with _connect(db_path) as conn:
+    with closing(_connect(db_path)) as conn:
         row = conn.execute("SELECT analysis_json, language FROM letters WHERE id = ? AND owner = ?",
                            (letter_id, owner)).fetchone()
-    return (LetterAnalysis.model_validate_json(row[0]), row[1]) if row else None
+    if not row:
+        return None
+    try:
+        return LetterAnalysis.model_validate_json(row[0]), row[1]
+    except ValueError:   # saved by an older version of PlainSpeak whose format has changed
+        return None
 
 
 def delete(letter_id: int, owner: str, db_path: Path = DB_PATH) -> None:
-    with _connect(db_path) as conn:
+    with closing(_connect(db_path)) as conn, conn:
         conn.execute("DELETE FROM letters WHERE id = ? AND owner = ?", (letter_id, owner))
 
 
@@ -111,5 +117,5 @@ class DiskStore:
         delete(letter_id, self.owner, self.db_path)
 
     def delete_all(self) -> None:
-        with _connect(self.db_path) as conn:
+        with closing(_connect(self.db_path)) as conn, conn:
             conn.execute("DELETE FROM letters WHERE owner = ?", (self.owner,))
