@@ -114,6 +114,7 @@ def labels(lang_code: str) -> dict[str, str]:
     result.update(zip(EXTRA_KEYS, EXTRA.get(lang_code, EXTRA["en"])))
     result.update(zip(ASK_KEYS, ASK.get(lang_code, ASK["en"])))
     result["estimated"] = ESTIMATED.get(lang_code, ESTIMATED["en"])
+    result["share"] = SHARE.get(lang_code, SHARE["en"])
     return result
 
 
@@ -162,4 +163,14 @@ ESTIMATED = {
     "ko": "편지에는 날짜가 아니라 기간이 적혀 있습니다. 편지를 받은 날부터 세고, 전화로 확인하세요.",
     "ru": "В письме указан срок, а не дата. Считайте со дня получения письма и позвоните, чтобы уточнить.",
     "pt": "A carta dá um prazo, não uma data. Conte a partir do dia em que recebeu a carta e ligue para confirmar.",
+}
+
+
+# "Send to family" section title, in every language.
+SHARE = {
+    "en": "Send this to family or someone who helps you", "es": "Envíe esto a su familia o a alguien que le ayude",
+    "zh-CN": "发给家人或帮助您的人", "vi": "Gửi cho gia đình hoặc người giúp bạn", "ar": "أرسل هذا إلى عائلتك أو لمن يساعدك",
+    "hi": "इसे परिवार या मदद करने वाले को भेजें", "tl": "Ipadala ito sa pamilya o sa taong tumutulong sa iyo",
+    "fr": "Envoyez ceci à votre famille ou à quelqu'un qui vous aide", "ko": "가족이나 도와주는 사람에게 보내기",
+    "ru": "Отправьте это родным или тому, кто вам помогает", "pt": "Envie isto para a família ou alguém que ajuda você",
 }

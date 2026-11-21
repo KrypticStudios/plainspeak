@@ -288,3 +288,17 @@ def test_without_backup_key_the_limit_message_is_friendly(monkeypatch):
     monkeypatch.delenv("GEMINI_BACKUP_API_KEY", raising=False)
     with pytest.raises(AnalyzerError, match="free AI limit"):
         analyze_letter("English", text="some letter")
+
+
+def test_share_message_and_links():
+    from datetime import date
+    from urllib.parse import unquote
+    from plainspeak.export import share_links, share_text
+    a = demo.demo_analysis("Eviction notice (rent)", "Español (Spanish)")
+    msg = share_text(a, "es", today=date(2026, 11, 21))
+    assert "viernes, 4 de diciembre de 2026" in msg and "(555) 013-7700" in msg
+    assert "Maria" not in msg                       # the person's name from the letter isn't sent
+    links = share_links(msg, "PlainSpeak")
+    assert links["WhatsApp"].startswith("https://wa.me/?text=") and unquote(links["WhatsApp"]).endswith(
+        "https://plainspeak.streamlit.app)")
+    assert links["SMS"].startswith("sms:") and links["Email"].startswith("mailto:?subject=")

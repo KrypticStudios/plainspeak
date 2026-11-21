@@ -26,7 +26,7 @@ for _name in ["schema", "checks", "ui_text", "calendar_export", "export", "image
 
 from plainspeak import calendar_export, checks, demo, history, monitor  # noqa: E402
 from plainspeak.analyzer import AnalyzerError, analyze_letter, ask_question, has_api_key
-from plainspeak.export import next_deadline, summary_html
+from plainspeak.export import next_deadline, share_links, share_text, summary_html
 from plainspeak.images import prepare_image
 from plainspeak.privacy import MAX_PAGES, MAX_TEXT_CHARS, RateLimiter, check_upload, redact
 from plainspeak.schema import LetterAnalysis
@@ -510,6 +510,12 @@ def show_result(a: LetterAnalysis, lang_name: str) -> None:
     elif col_save.button(f"💾 {t['save']}", use_container_width=True):
         st.session_state.saved_id = store.save(a, lang_name)
         st.rerun()
+
+    # --- Send to family: opens the person's OWN WhatsApp / texts / email, only when they tap ---
+    heading("👪", t["share"])
+    links = share_links(share_text(a, code, today=visitor_today()), subject=f"PlainSpeak: {a.document_type}")
+    for col, (app_name, icon) in zip(st.columns(3), [("WhatsApp", "💬"), ("SMS", "📱"), ("Email", "✉️")]):
+        col.link_button(f"{icon} {app_name}", links[app_name], use_container_width=True)
 
     with st.expander(t["show_original"]):
         st.text(a.original_text)

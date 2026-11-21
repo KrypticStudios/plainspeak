@@ -67,3 +67,29 @@ def summary_html(a: LetterAnalysis, lang_code: str) -> str:
 {help_line}
 <p><small>Made with PlainSpeak. This explains a letter; it is not legal or medical advice.</small></p>
 </body></html>"""
+
+
+def share_text(a: LetterAnalysis, lang_code: str, today: date | None = None) -> str:
+    """A short message someone can send to a family member or helper: what it is, when, what to do first."""
+    t = labels(lang_code)
+    lines = [f"📬 {a.document_type}", a.summary]
+    nxt = next_deadline(a, today)
+    if nxt:
+        lines.append(f"⏰ {t['next_deadline']}: {friendly_date(nxt[1].date, lang_code)} — {nxt[1].what}")
+    if a.actions:
+        lines.append(f"👉 {t['first_step']}: {a.actions[0].step}")
+    phones = [f"{c.name}: {c.phone}" for c in a.contacts if c.phone][:2]
+    if phones:
+        lines.append("☎️ " + " · ".join(phones))
+    lines.append("(PlainSpeak — https://plainspeak.streamlit.app)")
+    return "\n".join(lines)
+
+
+def share_links(message: str, subject: str) -> dict[str, str]:
+    """Links that open the person's own WhatsApp, text messages or email with the message filled in."""
+    from urllib.parse import quote
+    return {
+        "WhatsApp": "https://wa.me/?text=" + quote(message),
+        "SMS": "sms:?&body=" + quote(message),
+        "Email": f"mailto:?subject={quote(subject)}&body={quote(message)}",
+    }
