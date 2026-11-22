@@ -429,3 +429,26 @@ _HOME = {
 for _code, _words in _HOME.items():
     assert len(_words) == len(_HOME_KEYS), _code
     NEW[_code].update(zip(_HOME_KEYS, _words))
+
+_UPLOAD_BTN = {"en": "Upload", "es": "Subir carta", "zh-CN": "上传", "vi": "Tải lên", "ar": "رفع الرسالة",
+               "hi": "अपलोड करें", "tl": "I-upload", "fr": "Envoyer", "ko": "올리기", "ru": "Загрузить",
+               "pt": "Enviar carta"}
+for _code, _word in _UPLOAD_BTN.items():
+    NEW[_code]["upload_btn"] = _word
+
+# "How it works" section (Nov 22): how_a + *how_b*, how_sub, lang_label.
+_HOW = {
+    "en": ["How it", "works.", "Three simple steps. No forms, no jargon. Just your letter, explained.", "Language"],
+    "es": ["Cómo", "funciona.", "Tres pasos sencillos. Sin formularios ni palabras difíciles. Solo su carta, explicada.", "Idioma"],
+    "zh-CN": ["使用", "方法。", "三个简单步骤。没有表格，没有术语。只解释您的信。", "语言"],
+    "vi": ["Cách", "hoạt động.", "Ba bước đơn giản. Không biểu mẫu, không từ khó. Chỉ giải thích lá thư của bạn.", "Ngôn ngữ"],
+    "ar": ["كيف", "يعمل.", "ثلاث خطوات بسيطة. لا نماذج ولا مصطلحات صعبة. فقط رسالتك، مشروحة.", "اللغة"],
+    "hi": ["यह कैसे", "काम करता है।", "तीन आसान कदम। कोई फ़ॉर्म नहीं, कोई कठिन शब्द नहीं। बस आपका पत्र, समझाया हुआ।", "भाषा"],
+    "tl": ["Paano ito", "gumagana.", "Tatlong simpleng hakbang. Walang form, walang mahirap na salita. Ang sulat mo lang, ipinaliwanag.", "Wika"],
+    "fr": ["Comment ça", "marche.", "Trois étapes simples. Pas de formulaire, pas de jargon. Juste votre lettre, expliquée.", "Langue"],
+    "ko": ["이용", "방법.", "간단한 세 단계. 서류도 어려운 말도 없이, 편지만 설명해 드립니다.", "언어"],
+    "ru": ["Как это", "работает.", "Три простых шага. Без анкет и сложных слов. Просто ваше письмо, объяснённое.", "Язык"],
+    "pt": ["Como", "funciona.", "Três passos simples. Sem formulários, sem jargão. Só a sua carta, explicada.", "Idioma"],
+}
+for _code, _words in _HOW.items():
+    NEW[_code].update(zip(["how_a", "how_b", "how_sub", "lang_label"], _words))

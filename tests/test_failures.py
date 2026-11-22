@@ -15,11 +15,18 @@ from plainspeak.ui_start import ui
 from plainspeak.ui_text import labels
 
 APP = str(Path(__file__).resolve().parent.parent / "app.py")
+
+
+def paste_box(at: AppTest):
+    """The paste box sits behind the 'Paste the words' choice on the start page."""
+    if not [t for t in at.text_area if t.key == "pasted"]:
+        at.button(key="mode-paste").click().run()
+    return at.text_area(key="pasted")
 LETTER = demo.sample_text("Eviction notice (rent)")
 
 
 def paste_and_explain(at: AppTest, text: str = LETTER) -> AppTest:
-    at.text_area(key="pasted").input(text).run()
+    paste_box(at).input(text).run()
     at.button(key="go-text").click().run()
     return at
 

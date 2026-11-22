@@ -14,6 +14,13 @@ from plainspeak.schema import DocumentItem, ReplyDraft
 from plainspeak.ui_start import ui
 
 APP = str(Path(__file__).resolve().parent.parent / "app.py")
+
+
+def paste_box(at: AppTest):
+    """The paste box sits behind the 'Paste the words' choice on the start page."""
+    if not [t for t in at.text_area if t.key == "pasted"]:
+        at.button(key="mode-paste").click().run()
+    return at.text_area(key="pasted")
 EVICTION = demo.sample_text("Eviction notice (rent)")
 TODAY = date(2026, 11, 21)
 
@@ -51,7 +58,7 @@ def test_no_ai_choice_never_calls_the_ai(monkeypatch):
     monkeypatch.setattr(analyzer, "analyze_letter", must_not_run)
     at = AppTest.from_file(APP, default_timeout=60).run()
     at.toggle(key="no_ai").set_value(True).run()
-    at.text_area(key="pasted").input(EVICTION).run()
+    paste_box(at).input(EVICTION).run()
     at.button(key="go-text").click().run()
     assert not at.exception
     text = page_text(at)
@@ -63,7 +70,7 @@ def test_no_ai_choice_works_even_without_an_api_key(monkeypatch):
     monkeypatch.setattr(analyzer, "has_api_key", lambda: False)
     at = AppTest.from_file(APP, default_timeout=60).run()
     at.toggle(key="no_ai").set_value(True).run()
-    at.text_area(key="pasted").input(EVICTION).run()
+    paste_box(at).input(EVICTION).run()
     assert not at.button(key="go-text").disabled
     at.button(key="go-text").click().run()
     assert not at.exception and ui("en")["basic_title"] in page_text(at)
@@ -74,7 +81,7 @@ def test_basic_check_in_spanish():
     at.query_params["lang"] = "es"
     at.run()
     at.toggle(key="no_ai").set_value(True).run()
-    at.text_area(key="pasted").input(EVICTION).run()
+    paste_box(at).input(EVICTION).run()
     at.button(key="go-text").click().run()
     assert not at.exception
     assert ui("es")["basic_title"] in page_text(at) and "diciembre" in page_text(at)
@@ -84,7 +91,7 @@ def test_basic_check_shows_letter_words_safely():
     """Words from the letter are shown as text, never run as HTML."""
     at = AppTest.from_file(APP, default_timeout=60).run()
     at.toggle(key="no_ai").set_value(True).run()
-    at.text_area(key="pasted").input("<script>alert(1)</script> Pay $20.00 by December 4, 2026.").run()
+    paste_box(at).input("<script>alert(1)</script> Pay $20.00 by December 4, 2026.").run()
     at.button(key="go-text").click().run()
     assert not at.exception
     assert "<script>" not in " ".join(m.value for m in at.markdown)
@@ -101,7 +108,7 @@ def test_papers_to_bring_are_shown_with_their_quote(monkeypatch):
     monkeypatch.setattr(analyzer, "analyze_letter", lambda *a, **k: answer)
     monkeypatch.setattr(analyzer, "has_api_key", lambda: True)
     at = AppTest.from_file(APP, default_timeout=60).run()
-    at.text_area(key="pasted").input(letter).run()
+    paste_box(at).input(letter).run()
     at.button(key="go-text").click().run()
     assert not at.exception
     assert ui("en")["docs_title"] in page_text(at)
@@ -254,8 +261,8 @@ def test_a_quote_with_a_different_amount_is_not_found():
 def test_an_emptied_paste_box_stays_empty():
     """Privacy: if someone deletes their letter from the box, it must not come back later."""
     at = AppTest.from_file(APP, default_timeout=60).run()
-    at.text_area(key="pasted").input(EVICTION).run()
-    at.text_area(key="pasted").input("").run()
+    paste_box(at).input(EVICTION).run()
+    paste_box(at).input("").run()
     at.query_params["example"] = "hospital"
     at.run()
     [b for b in at.button if b.key == "start-over"][0].click().run()

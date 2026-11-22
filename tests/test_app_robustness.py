@@ -147,4 +147,4 @@ def test_start_over_and_language_change_after_results():
     assert "result" not in at.session_state and not at.exception
     assert at.session_state["lang_pref"].startswith("Español")
     at.selectbox(key="language").select("Tiếng Việt (Vietnamese)").run()
-    assert not at.exception and "Dán chữ" in " ".join(t.label for t in at.tabs)
+    assert not at.exception and "Dán chữ" in " ".join(b.label for b in at.button)

@@ -290,7 +290,15 @@ h2.ps-home-h2.big {font-size: 3.7rem !important; text-align: center; margin-top:
 .ps-kinds div {border: 2px solid var(--green); border-radius: 999px; padding: 1rem 1.6rem; font-weight: 700;
   font-size: 1.2rem; color: var(--green); display: flex; align-items: center; gap: .9rem;}
 .ps-kinds .dot {width: 16px; height: 16px; border-radius: 50%; background: var(--orange-big); flex: none;}
-.st-key-ps-upload {background: #fff; border-radius: 28px; padding: 1.8rem 2rem; box-shadow: 0 14px 34px rgba(31,59,45,.08);}
+.st-key-ps-go {gap: 1rem !important; margin: -1.2rem 0 1.4rem; max-width: 620px;}
+.st-key-ps-go [data-testid="stSelectbox"] {flex: 1 1 0; min-width: 0;}
+.st-key-ps-go [data-baseweb="select"] > div {border: 2px solid var(--green) !important; border-radius: 999px !important;
+  min-height: 3.6rem; background: transparent !important; padding-left: 1.4rem; font-weight: 700; font-size: 1.05rem;}
+.st-key-ps-go [data-baseweb="select"] svg {color: var(--green);}
+.st-key-ps-go button {min-height: 3.6rem; padding: .6rem 2.1rem !important; font-size: 1.05rem;}
+.st-key-ps-go button p {font-size: 1.05rem !important; font-weight: 700;}
+
+h2.ps-home-h2.glance {margin-top: 1.4rem !important;}
 .ps-ex-head .ps-sub {margin-bottom: 1.2rem !important;}
 .ps-paper {background: #fff; border-radius: 24px; height: 250px; padding: 2.6rem 2rem; margin: 2.2rem .4rem 1.8rem;
   box-shadow: 0 22px 40px rgba(31,59,45,.12);}
@@ -306,6 +314,79 @@ h2.ps-home-h2.big {font-size: 3.7rem !important; text-align: center; margin-top:
 [class*="st-key-ex-"] button p {font-size: 1.15rem !important; font-weight: 700;}
 [class*="st-key-ex-"] button [data-testid="stIconMaterial"] {background: #F6DED2; color: var(--orange); border-radius: 50%;
   width: 2.3rem; height: 2.3rem; display: inline-flex; align-items: center; justify-content: center; margin-right: .4rem;}
+
+/* ---- how it works + upload card ---- */
+.ps-band {background: var(--green); margin: 4rem calc(50% - 50vw) 0; padding: 5.5rem calc(50vw - 50%) 15rem; text-align: center;}
+h2.ps-how {font-family: var(--serif) !important; font-weight: 500 !important; font-size: 4.4rem !important;
+  color: #F1ECE2 !important; letter-spacing: -.03em; line-height: 1 !important; margin: 0 !important; padding: 0 !important;}
+h2.ps-how em {color: var(--gold); font-style: italic; font-weight: 400;}
+.ps-how-sub {color: #E8E1D2 !important; font-size: 1.3rem !important; margin: 1.3rem 0 3.6rem !important;}
+.ps-how-steps {display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.3rem; text-align: left;}
+.ps-how-step {background: var(--cream); border-radius: 30px; padding: 2rem 2.2rem 2.1rem; box-shadow: 0 16px 30px rgba(0,0,0,.18);}
+.ps-how-step.gold {background: var(--gold);}
+.ps-how-step b.n {display: block; font-family: var(--serif); font-size: 4rem; font-weight: 600; line-height: 1;
+  color: var(--orange-big); margin-bottom: 1.2rem;}
+.ps-how-step.gold b.n {color: var(--green);}
+.ps-how-step b.t {display: block; font-family: var(--serif); font-size: 1.5rem; line-height: 1.25; font-weight: 600; color: var(--green);}
+.ps-how-step span {color: var(--muted); font-size: 1.08rem;}
+.ps-how-step.gold span {color: var(--green);}
+.st-key-ps-upload {background: #fff; border-radius: 34px; padding: 2.4rem 2.2rem 1.6rem; margin-top: -12.5rem;
+  position: relative; z-index: 2; box-shadow: 0 22px 46px rgba(31,59,45,.14);}
+.st-key-mode-photo button, .st-key-mode-paste button {background: transparent !important; border: none !important;
+  box-shadow: none !important; justify-content: flex-start !important; padding: .4rem 0 !important; min-height: 4.6rem;
+  color: var(--green) !important;}
+.st-key-mode-photo button p, .st-key-mode-paste button p {font-size: 1.2rem !important; font-weight: 700;}
+.st-key-mode-photo button [data-testid="stIconMaterial"], .st-key-mode-paste button [data-testid="stIconMaterial"]
+    {flex: 0 0 3.4rem; width: 3.4rem !important; min-width: 3.4rem; height: 3.4rem; border-radius: 16px;
+     background: #F6DED2; color: var(--orange); display: inline-flex !important; align-items: center;
+     justify-content: center; margin: 0 !important; font-size: 1.5rem !important; overflow: visible;}
+[data-testid="stBaseButton-primary"] [data-testid="stIconMaterial"] {color: inherit;}
+.st-key-mode-photo button > div, .st-key-mode-paste button > div {width: 100%; justify-content: flex-start !important;}
+.st-key-mode-photo button span:has(> [data-testid="stIconMaterial"]),
+.st-key-mode-paste button span:has(> [data-testid="stIconMaterial"]) {width: auto !important; height: auto !important;
+  margin: 0 .9rem 0 0 !important; display: inline-flex;}
+.st-key-go-photo button p, .st-key-go-text button p {font-size: 1.1rem !important; font-weight: 700;}
+.st-key-mode-photo [data-testid="stBaseButton-primary"] [data-testid="stIconMaterial"],
+.st-key-mode-paste [data-testid="stBaseButton-primary"] [data-testid="stIconMaterial"] {background: var(--green); color: #fff;}
+.st-key-ps-lang {gap: .8rem !important; margin-top: .6rem;}
+.ps-lang-ico {width: 3.4rem; height: 3.4rem; border-radius: 16px; background: #F6DED2; color: var(--orange);
+  display: inline-flex; align-items: center; justify-content: center;}
+.st-key-ps-lang [data-testid="stSelectbox"] {flex: 1 1 0; min-width: 0;}
+.st-key-ps-lang [data-testid="stWidgetLabel"] p {color: var(--orange-text) !important; font-weight: 700; font-size: .85rem !important;}
+.st-key-ps-lang [data-testid="stTooltipIcon"] {display: none;}
+.st-key-ps-lang [role="group"] {border: none !important; background: transparent !important; box-shadow: none !important;}
+.st-key-ps-lang input {font-size: 1.2rem !important; font-weight: 700 !important; color: var(--green) !important;}
+h3.ps-up-title {font-family: var(--serif) !important; font-weight: 600 !important; font-size: 1.8rem !important;
+  color: var(--green) !important; margin: 0 0 .6rem !important; padding: 0 !important; line-height: 1.2 !important;}
+.st-key-ps-upload [data-testid="stFileUploaderDropzone"] {display: flex; flex-direction: column-reverse; align-items: stretch;
+  gap: 1.1rem; border: none !important; background: transparent !important; padding: 0 !important;}
+.st-key-ps-upload [data-testid="stFileUploaderDropzoneInstructions"] {border: 2px dashed #CDBF9F; border-radius: 999px;
+  background: #FAF6EE; padding: .95rem 1rem; display: flex; width: 100%; box-sizing: border-box; justify-content: center; align-items: center; gap: .8rem;
+  color: var(--muted);}
+.st-key-ps-upload [data-testid="stFileUploaderDropzoneInstructions"]::before {content: "↑"; width: 2.3rem; height: 2.3rem;
+  border-radius: 50%; background: #F6DED2; color: var(--orange); display: inline-flex; align-items: center;
+  justify-content: center; font-weight: 700; font-size: 1.2rem;}
+.st-key-ps-upload [data-testid="stFileUploaderDropzone"] > span {display: block; width: 100%;}
+.st-key-ps-upload [data-testid="stFileUploaderDropzone"] > span button {width: 100%; min-height: 3.7rem;
+  background: var(--orange-big) !important; border: none !important; color: #fff !important; font-size: 1.15rem;
+  box-shadow: 0 10px 22px rgba(184,78,37,.3);}
+.st-key-ps-upload [data-testid="stFileUploaderDropzone"] > span button * {color: #fff !important; font-size: 1.15rem !important;}
+.st-key-ps-cam {background: #FAF6EE; border: 1.5px solid #E6DFD0; border-radius: 999px; padding: .85rem 1.3rem; min-height: 3.6rem;}
+.st-key-go-photo button, .st-key-go-text button {background: var(--green) !important; border: none !important;
+  color: #fff !important; min-height: 3.6rem; font-size: 1.1rem;}
+.st-key-go-photo button *, .st-key-go-text button * {color: #fff !important;}
+.st-key-go-photo button:disabled, .st-key-go-text button:disabled {opacity: .55;}
+.ps-tips {display: flex; gap: .9rem; align-items: flex-start; border-top: 1px solid var(--soft); margin-top: 1rem;
+  padding-top: 1.3rem; color: var(--muted); font-size: .98rem; line-height: 1.6;}
+.ps-tips .ps-i {color: var(--muted); margin-top: .15rem;}
+.ps-tips b {color: var(--green);}
+.st-key-ps-privacy {background: #fff; border-radius: 34px; padding: 1.1rem 1.1rem 1.2rem; margin-top: 2.2rem;
+  box-shadow: 0 18px 40px rgba(31,59,45,.1);}
+.ps-demo {background: var(--green); border-radius: 30px; padding: 1.5rem 2rem; display: flex; gap: 1.1rem; color: #E8E1D2;}
+.ps-demo .ps-i {color: var(--gold); flex: none; margin-top: .1rem;}
+.ps-demo b {display: block; color: var(--gold); font-size: 1.1rem; margin-bottom: .3rem;}
+.ps-demo span {font-size: 1.02rem; line-height: 1.55;}
+.st-key-ps-privacy [data-testid="stCheckbox"] {padding: .4rem 1rem 0;}
 
 @media (max-width: 820px) {
   .ps-hero {grid-template-columns: 1fr;}
@@ -336,7 +417,13 @@ h2.ps-home-h2.big {font-size: 3.7rem !important; text-align: center; margin-top:
   .ps-kinds, .ps-feat-row {grid-template-columns: 1fr;}
   .ps-stats {gap: 1.6rem;}
   .ps-paper {height: 170px; padding: 1.6rem 1.4rem;}
-  .st-key-ps-upload {padding: 1.2rem 1.1rem;}
+  .st-key-ps-upload {padding: 1.4rem 1.1rem 1rem; margin-top: -8rem; border-radius: 26px;}
+  .ps-band {padding: 3.5rem calc(50vw - 50%) 10rem; margin-top: 2.5rem;}
+  h2.ps-how {font-size: 2.8rem !important;}
+  .ps-how-steps {grid-template-columns: 1fr;}
+  .ps-how-step {padding: 1.4rem 1.5rem;}
+  .ps-how-step b.n {font-size: 2.6rem; margin-bottom: .6rem;}
+  .ps-demo {border-radius: 22px; padding: 1.2rem 1.2rem;}
 }
 </style>
 """
@@ -355,7 +442,7 @@ BIG_TEXT = """<style>
 
 HIGH_CONTRAST = """<style>
 .stApp, [data-testid="stHeader"], .ps-card, .ps-hero, .ps-hero-l, .ps-hero-r, .ps-banner, .ps-disc, .ps-tile,
-.ps-tile .m, .ps-step, .st-key-ps-side, .ps-preview, .ps-feat, .ps-paper, .st-key-ps-upload, .ps-kinds div, .st-key-ps-empty, .ps-icotile, .ps-badge, .ps-chip, [data-testid="stForm"],
+.ps-tile .m, .ps-step, .st-key-ps-side, .ps-band, .ps-how-step, .ps-demo, .st-key-ps-privacy, .st-key-ps-cam, .ps-preview, .ps-feat, .ps-paper, .st-key-ps-upload, .ps-kinds div, .st-key-ps-empty, .ps-icotile, .ps-badge, .ps-chip, [data-testid="stForm"],
 [data-testid="stSelectbox"] div, [data-baseweb="select"] div, [data-baseweb="select"] input,
 [data-baseweb="popover"] *, [role="listbox"] *,
 [data-testid="stAlert"], [data-testid="stAlertContainer"], [data-testid="stAlert"] *,

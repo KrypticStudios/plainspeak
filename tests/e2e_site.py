@@ -136,7 +136,8 @@ with sync_playwright() as p:
     }
     for name, text in samples.items():
         pg = open_page(browser)
-        pg.get_by_role("tab", name=re.compile("Paste the words")).click()
+        pg.get_by_role("button", name="Paste the words").click()
+        pg.wait_for_timeout(1200)
         pg.locator("textarea").fill(text)
         pg.keyboard.press("Meta+Enter")
         pg.wait_for_timeout(800)
@@ -161,11 +162,11 @@ with sync_playwright() as p:
     # 7. Keyboard only: can you reach the language box, the tabs and the examples?
     pg = open_page(browser)
     seen = set()
-    for _ in range(40):
+    for _ in range(60):
         pg.keyboard.press("Tab")
         seen.add(pg.evaluate("(document.activeElement.innerText || document.activeElement.getAttribute('aria-label') || document.activeElement.tagName).slice(0,40)"))
     reach = " ".join(seen)
-    check("keyboard reaches tabs and example buttons", "Photo or PDF" in reach and "Eviction" in reach, "")
+    check("keyboard reaches tabs and example buttons", "Paste the words" in reach and "Eviction" in reach, reach[:120])
     pg.close()
     browser.close()
 

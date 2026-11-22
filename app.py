@@ -339,66 +339,98 @@ def start_screen() -> None:
                                                       for k in ("kind_rent", "kind_benefits", "kind_medical")) +
                 "</div>", unsafe_allow_html=True)
 
+    # ---- How it works: three steps on a green band, the upload card overlapping it ----
+    steps = [(re.sub(r"^\d+[.、]\s*", "", U[f"step{n}t"]), U[f"step{n}d"]) for n in (1, 2, 3)]
+    st.markdown(f'<div class="ps-band"{rtl}><h2 class="ps-how">{esc(U["how_a"])} <em>{esc(U["how_b"])}</em></h2>'
+                f'<p class="ps-how-sub">{esc(U["how_sub"])}</p><div class="ps-how-steps">' + "".join(
+                    f'<div class="ps-how-step{" gold" if n == 3 else ""}"><b class="n">{n}</b>'
+                    f'<b class="t">{esc(title)}</b><span>{esc(desc)}</span></div>'
+                    for n, (title, desc) in enumerate(steps, 1)) + "</div></div>", unsafe_allow_html=True)
+
+    # Paste mode if they already pasted something (Streamlit forgets a text box's words on other screens).
+    if "upload_mode" not in st.session_state:
+        st.session_state.upload_mode = "paste" if st.session_state.get("pasted_keep") else "photo"
+    mode = st.session_state.upload_mode
+    no_ai = st.session_state.get("no_ai", False)   # the switch itself is drawn under the privacy note below
+    can_go = has_api_key() or no_ai
     with st.container(key="ps-upload"):
-        st.selectbox("🌐 Explain my letter in / Idioma / 语言 / Ngôn ngữ / اللغة", list(LANGUAGES),
-                     index=list(LANGUAGES).index(language), key="language",
-                     help="The summary and steps will be in this language.")
-        if st.session_state.language != language:   # picked a new language: redraw everything in it
-            st.session_state.lang_pref = st.session_state.language
-            st.rerun()
-        if not has_api_key():
-            st.info(U["demo_mode"], icon="ℹ️")
-        st.caption(U["privacy_line"])   # visible BEFORE anyone uploads, not hidden in a menu
-
-        # Privacy choice: plain-Python check only, nothing goes to the AI (also works when there is no AI key).
-        no_ai = st.toggle("🔐 " + U["no_ai_toggle"], key="no_ai", help=U["no_ai_help"])
-        can_go = has_api_key() or no_ai
-        tab_photo, tab_text = st.tabs([U["tab_photo"], U["tab_paste"]])
-
-        with tab_photo:
-            uploads = st.file_uploader(U["upload_label"], accept_multiple_files=True, key="uploads",
-                                       type=["png", "jpg", "jpeg", "webp", "pdf"])
-            st.caption(U["photo_tips"])
-            use_camera = st.toggle(U["use_camera"], key="use_camera")
-            snap = st.camera_input(U["camera_label"], key="camera") if use_camera else None
-            pages = ([snap] if snap else []) + list(uploads or [])
-            if pages:
-                # Check every file FIRST. Only real, readable pictures get a preview (a broken file must
-                # show a friendly message, not crash the page).
-                problems = upload_problems(pages)
-                checked = st.session_state["upload_checks"]
-                images = [p for p in pages if p.type.startswith("image/") and not checked.get(p.file_id)]
-                if images:
-                    st.image(images, caption=[f"{U['page']} {i}" for i in range(1, len(images) + 1)], width=140)
-                for problem in problems:
-                    st.error(problem, icon="🚫")
-                label = f"{U['explain']} ({len(pages)} {U['page'] if len(pages) == 1 else U['pages']})"
-                if st.button(label, type="primary", key="go-photo", disabled=not can_go or bool(problems),
-                             use_container_width=True):
+        left, right = st.columns([1, 2.35], gap="large")
+        with left:
+            for m, label, ico in (("photo", U["tab_photo"], ":material/photo_camera:"),
+                                  ("paste", U["tab_paste"], ":material/keyboard:")):
+                st.button(plain(label), key=f"mode-{m}", icon=ico, type="primary" if mode == m else "secondary",
+                          on_click=lambda m=m: st.session_state.update(upload_mode=m), width="stretch")
+            with st.container(key="ps-lang", horizontal=True, vertical_alignment="center"):
+                st.markdown(f'<span class="ps-lang-ico">{icon("globe", 22)}</span>', unsafe_allow_html=True,
+                            width="content")
+                st.selectbox(U["lang_label"] if language != "English" else "Language · Idioma · 语言 · اللغة", list(LANGUAGES),
+                             index=list(LANGUAGES).index(language), key="language",
+                             help="The summary and steps will be in this language.")
+            if st.session_state.language != language:   # picked a new language: redraw everything in it
+                st.session_state.lang_pref = st.session_state.language
+                st.rerun()
+        with right:
+            if not has_api_key() and not no_ai:
+                st.info(U["demo_mode"], icon="ℹ️")
+            if mode == "photo":
+                st.markdown(f'<h3 class="ps-up-title"{rtl}>{esc(U["upload_label"])}</h3>', unsafe_allow_html=True)
+                uploads = st.file_uploader(U["upload_label"], accept_multiple_files=True, key="uploads",
+                                           type=["png", "jpg", "jpeg", "webp", "pdf"], label_visibility="collapsed")
+                cam_col, go_col = st.columns(2)
+                with cam_col, st.container(key="ps-cam"):
+                    use_camera = st.toggle(U["use_camera"], key="use_camera")
+                snap = st.camera_input(U["camera_label"], key="camera") if use_camera else None
+                pages = ([snap] if snap else []) + list(uploads or [])
+                problems = []
+                if pages:
+                    # Check every file FIRST. Only real, readable pictures get a preview (a broken file must
+                    # show a friendly message, not crash the page).
+                    problems = upload_problems(pages)
+                    checked = st.session_state["upload_checks"]
+                    images = [p for p in pages if p.type.startswith("image/") and not checked.get(p.file_id)]
+                    if images:
+                        st.image(images, caption=[f"{U['page']} {i}" for i in range(1, len(images) + 1)], width=140)
+                    for problem in problems:
+                        st.error(problem, icon="🚫")
+                label = U["explain"] + (f" ({len(pages)} {U['page'] if len(pages) == 1 else U['pages']})" if pages else "")
+                if go_col.button(label, key="go-photo", disabled=not pages or not can_go or bool(problems),
+                                 icon=":material/arrow_forward:", icon_position="right", width="stretch"):
                     # Check again here on the server: a disabled button in the browser is not a real lock.
-                    if not upload_problems(pages):
+                    if pages and not upload_problems(pages):
                         st.session_state.request = {"files": [prepare_image(p.getvalue(), p.type) for p in pages],
                                                     "source": "photo", "basic": no_ai}
                         st.rerun()
+                tips = plain(U["photo_tips"])
+                head, sep, tail = tips.partition(":")
+                tips_html = f"<b>{esc(head)}:</b>{esc(tail)}" if sep and len(head) < 20 else esc(tips)
+            else:
+                st.markdown(f'<h3 class="ps-up-title"{rtl}>{esc(U["paste_label"])}</h3>', unsafe_allow_html=True)
+                if "pasted" not in st.session_state and st.session_state.get("pasted_keep"):
+                    st.session_state.pasted = st.session_state.pasted_keep
+                pasted = st.text_area(U["paste_label"], height=200, max_chars=MAX_TEXT_CHARS, key="pasted",
+                                      placeholder=U["paste_placeholder"], label_visibility="collapsed")
+                if st.button(U["explain"], key="go-text", disabled=not can_go, icon=":material/arrow_forward:",
+                             icon_position="right", width="stretch"):
+                    if pasted.strip():
+                        clean, hidden = redact(pasted[:MAX_TEXT_CHARS])
+                        if hidden:
+                            monitor.record("ids_hidden")
+                        st.session_state.request = {"text": clean, "source": "text", "basic": no_ai,
+                                                    "notice": U["ids_hidden"].format(n=hidden) if hidden else None}
+                        st.rerun()
+                    else:
+                        st.warning(U["empty_box"])
+                tips_html = esc(plain(U["ids_note"]))
+        st.markdown(f'<div class="ps-tips"{rtl}>{icon("camera" if mode == "photo" else "lock", 20)}'
+                    f'<span>{tips_html}</span></div>', unsafe_allow_html=True)
 
-        with tab_text:
-            # Streamlit forgets a text box's words while another screen is shown; put them back.
-            if "pasted" not in st.session_state and st.session_state.get("pasted_keep"):
-                st.session_state.pasted = st.session_state.pasted_keep
-            pasted = st.text_area(U["paste_label"], height=180, max_chars=MAX_TEXT_CHARS, key="pasted",
-                                  placeholder=U["paste_placeholder"])
-            st.caption(U["ids_note"])
-            if st.button(U["explain"], type="primary", key="go-text", disabled=not can_go,
-                         use_container_width=True):
-                if pasted.strip():
-                    clean, hidden = redact(pasted[:MAX_TEXT_CHARS])
-                    if hidden:
-                        monitor.record("ids_hidden")
-                    st.session_state.request = {"text": clean, "source": "text", "basic": no_ai,
-                                                "notice": U["ids_hidden"].format(n=hidden) if hidden else None}
-                    st.rerun()
-                else:
-                    st.warning(U["empty_box"])
+    # The privacy note, visible BEFORE anyone uploads, and the choice to keep the letter away from the AI.
+    note = plain(U["privacy_line"])
+    first, _, more = note.partition(". ")
+    with st.container(key="ps-privacy"):
+        st.markdown(f'<div class="ps-demo"{rtl}>{icon("lock", 22)}<div><b>{esc(first)}.</b>'
+                    f'<span>{esc(more)}</span></div></div>', unsafe_allow_html=True)
+        st.toggle("🔐 " + U["no_ai_toggle"], key="no_ai", help=U["no_ai_help"])
 
     # One-click examples
     title = U["examples_title"]
