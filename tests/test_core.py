@@ -366,3 +366,21 @@ def test_transparent_png_becomes_white_not_black():
 def test_read_aloud_with_nothing_to_say_does_not_crash():
     from plainspeak.speech import text_to_mp3
     assert text_to_mp3("   ", "en") is None
+
+
+@pytest.mark.parametrize("iso,text", [
+    ("2026-12-10", "请于2026年12月10日上午10点到本办公室"), ("2026-12-10", "2026년 12월 10일까지"),
+    ("2026-12-12", "trước ngày 12 tháng 12 năm 2026"), ("2026-12-15", "оплатите до 15 декабря 2026 г."),
+    ("2026-12-04", "भुगतान 4 दिसंबर 2026 तक"), ("2026-12-04", "الدفع قبل ٤ ديسمبر ٢٠٢٦"),
+    ("2026-12-04", "bago ang Disyembre 4, 2026"), ("2026-12-04", "le 4 décembre 2026"), ("2026-12-04", "04.12.2026"),
+])
+def test_dates_in_every_app_language(iso, text):
+    from plainspeak.checks import date_written_in
+    assert date_written_in(iso, text)
+
+
+def test_similar_dates_in_other_languages_are_not_confused():
+    from plainspeak.checks import date_written_in
+    assert not date_written_in("2026-12-04", "14 декабря 2026")
+    assert not date_written_in("2026-12-04", "2026年12月14日")
+    assert not date_written_in("2026-12-04", "ngày 14 tháng 12 năm 2026")

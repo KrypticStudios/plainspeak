@@ -31,6 +31,8 @@ Rules:
 - "[number hidden]" was put there by PlainSpeak to protect the reader's privacy. Never mention it.
 - Every deadline, action and money item MUST include a `source_quote` copied exactly from the letter.
   Quote the WHOLE sentence or line it comes from (not just a date or a number), so the reader can find it.
+  For a deadline, quote the sentence that CONTAINS its date. If the letter says both "within 14 days" and
+  "by December 4, 2026", quote the one with the date.
 - Only fill in a deadline's `date` if that exact date is WRITTEN in the letter. If the letter gives a time
   period instead (for example "within 14 days after service" or "10 days, not counting weekends"), leave
   `date` empty, explain the time period in `what`, and add to `unclear_points` that the exact deadline

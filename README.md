@@ -52,8 +52,10 @@ The main weak spots: urgency is sometimes one level off (the app leans toward "u
 Full results, including everything it got wrong: [eval/RESULTS.md](eval/RESULTS.md).
 
 **Other tests:**
-- 100 automated tests (`pytest -q`). They include feeding the page strange AI answers (empty, invalid dates, huge text, injected links and code, right-to-left text) and opening every example in all 11 languages.
+- 130+ automated tests (`pytest -q`). They include feeding the page strange AI answers (empty, invalid dates, huge text, injected links and code, right-to-left text) and opening every example in all 11 languages.
 - A full click-through of the live site in Chrome (`tests/e2e_site.py`). It covers all 11 languages on desktop and phone sizes (no sideways scrolling), the calendar and print downloads, share links, two visitors not seeing each other's letters, read-aloud, a live question, a trick letter, a non-letter, and keyboard-only navigation.
+- Hard real-world letters through the live AI (`tests/hard_letters.py`): letters written in Chinese, Vietnamese and Russian, a court letter full of distracting dates, sideways, upside-down and dark photos, and a PDF with real text. All 8 get the right deadlines.
+- Simulated failures (`tests/test_failures.py`): the AI busy, the limit reached, unreadable files, too many questions, and read-aloud down. Each gives a friendly message in the user's language, and pasted text is never lost.
 - A browser test, `tests/e2e_uploads.py`, puts real files through the actual upload button. A phone photo, a scan, a PNG and a 2-page letter are explained. Six kinds of bad file (fake image, half-downloaded photo, giant image, too many pages) are refused with a clear message.
 - An automated accessibility scan with axe-core, `tests/a11y_audit.py`, found 0 WCAG 2.1 AA violations on six pages (English, Spanish, Arabic right-to-left, high contrast). Automated scans catch only some issues. We haven't yet done a full screen-reader test.
 

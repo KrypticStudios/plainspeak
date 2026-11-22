@@ -169,11 +169,6 @@ def clear_answer() -> None:
 
 # ---------- Sidebar: display settings, saved letters ----------
 with st.sidebar:
-    st.header(U["display"])
-    big_text = st.toggle(U["larger_text"], value=LINK["bigtext"] == "1", key="big_text")
-    high_contrast = st.toggle(U["high_contrast"], value=LINK["contrast"] == "1", key="high_contrast")
-
-    st.divider()
     st.header(U["my_letters"])
     recent = store.list_recent()
     if not recent:
@@ -202,10 +197,16 @@ with st.sidebar:
 
 
 # ---------- Styles ----------
+# Display settings live at the top of the page (not only in the sidebar, which phones hide), so the
+# people who need larger text or high contrast can find them. Read them here, draw them below.
+big_text = st.session_state.get("big_text", LINK["bigtext"] == "1")
+high_contrast = st.session_state.get("high_contrast", LINK["contrast"] == "1")
 css = """
 <style>
 .block-container {padding-top: 2.2rem;}
 .ps-card {border-radius: 12px; padding: 1rem 1.2rem; margin: .5rem 0; border: 2px solid #cbd5e1; background: #f8fafc;}
+.ps-card, .ps-quote, .ps-step, [data-testid="stMarkdownContainer"], [data-testid="stCaptionContainer"]
+    {overflow-wrap: anywhere;}   /* long account numbers or web addresses wrap instead of widening the page */
 .ps-high {border-color: #b91c1c; background: #fef2f2;}
 .ps-medium {border-color: #b45309; background: #fffbeb;}
 .ps-low {border-color: #15803d; background: #f0fdf4;}
@@ -254,12 +255,21 @@ st.markdown(css, unsafe_allow_html=True)
 
 
 # ---------- Header ----------
+def display_settings() -> None:
+    """Larger text and high contrast, side by side at the top of every screen."""
+    col_big, col_contrast = st.columns(2)
+    col_big.toggle("🔎 " + U["larger_text"], value=LINK["bigtext"] == "1", key="big_text")
+    col_contrast.toggle("🌗 " + U["high_contrast"], value=LINK["contrast"] == "1", key="high_contrast")
+
+
 if "result" in st.session_state:
     # Results: keep the header small, so on a phone the answer is on the first screen.
     st.markdown('<h1 style="font-size:1.4rem;padding:0;margin:0 0 .3rem">📬 PlainSpeak</h1>', unsafe_allow_html=True)
+    display_settings()
 else:
     st.title("📬 PlainSpeak")
     st.markdown(U["tagline"])
+    display_settings()
     st.selectbox("🌐 Explain my letter in / Idioma / 语言 / Ngôn ngữ / اللغة", list(LANGUAGES),
                  index=list(LANGUAGES).index(language), key="language",
                  help="The summary and steps will be in this language.")
@@ -423,7 +433,7 @@ def show_result(a: LetterAnalysis, lang_name: str) -> None:
         # (A fixed snippet of our own code, never anything from a letter or the AI.)
         st.iframe("<script>for (const el of [window.parent, ...window.parent.document.querySelectorAll("
                   "'[data-testid=stMain], section.main, .main')]) { try { el.scrollTo({top: 0}); } catch (e) {} }"
-                  "</script>", height=1, tab_index=-1, alt="")
+                  "</script>", height=1, tab_index=-1, alt="(scrolls the page to the top)")
 
     if st.button(f"⬅️ {t['start_over']}", key="start-over"):
         clear_answer()

@@ -73,6 +73,25 @@ MONTH_NAMES = {
     11: ["november", "nov", "noviembre", "novembre", "novembro", "nobyembre"],
     12: ["december", "dec", "diciembre", "décembre", "decembre", "dezembro", "disyembre"],
 }
+# Month names in the other app languages (Russian uses the "of December" form in dates).
+_MORE_MONTHS = {
+    1: ["января", "январь", "जनवरी", "يناير", "كانون الثاني"],
+    2: ["февраля", "февраль", "फ़रवरी", "फरवरी", "فبراير", "شباط"],
+    3: ["марта", "март", "मार्च", "مارس", "آذار"],
+    4: ["апреля", "апрель", "अप्रैल", "أبريل", "ابريل", "نيسان"],
+    5: ["мая", "май", "मई", "مايو", "أيار"],
+    6: ["июня", "июнь", "जून", "يونيو", "حزيران"],
+    7: ["июля", "июль", "जुलाई", "يوليو", "تموز"],
+    8: ["августа", "август", "अगस्त", "أغسطس", "آب"],
+    9: ["сентября", "сентябрь", "सितंबर", "सितम्बर", "سبتمبر", "أيلول"],
+    10: ["октября", "октябрь", "अक्टूबर", "أكتوبر", "تشرين الأول"],
+    11: ["ноября", "ноябрь", "नवंबर", "नवम्बर", "نوفمبر", "تشرين الثاني"],
+    12: ["декабря", "декабрь", "दिसंबर", "दिसम्बर", "ديسمبر", "كانون الأول"],
+}
+for _num, _names in _MORE_MONTHS.items():
+    MONTH_NAMES[_num] = MONTH_NAMES[_num] + _names
+# Arabic-Indic and Devanagari digits -> 0-9, so "٤ ديسمبر ٢٠٢٦" and "४ दिसंबर २०२६" are understood too.
+_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹०१२३४५६७८९", "0123456789" * 3)
 _MONTH = {name: num for num, names in MONTH_NAMES.items() for name in names}
 _MONTH_RE = "|".join(sorted(map(re.escape, _MONTH), key=len, reverse=True))
 _DAY = r"(\d{1,2})(?:st|nd|rd|th|er)?"
@@ -83,15 +102,21 @@ _DATE_PATTERNS = [
     (re.compile(r"(?<![\d/])(\d{1,2})[/-](\d{1,2})[/-](\d{4}|\d{2})(?![\d/])"), "mdy"),
     # December 4, 2026 / Dec. 4th 2026
     (re.compile(rf"\b({_MONTH_RE})\.?\s+{_DAY},?\s+(\d{{4}})\b"), "Mdy"),
-    # 4 December 2026 / 4 de diciembre de 2026 / 4 décembre 2026 / 4 de dezembro de 2026
-    (re.compile(rf"(?<!\d){_DAY}\s+(?:de\s+)?({_MONTH_RE})\.?,?\s+(?:de\s+|del\s+)?(\d{{4}})\b"), "dMy"),
+    # 4 December 2026 / 4 de diciembre de 2026 / 4 décembre 2026 / 4 декабря 2026 г. / 4 दिसंबर 2026 / 4 ديسمبر 2026
+    (re.compile(rf"(?<!\d){_DAY}\s+(?:de\s+)?({_MONTH_RE})\.?,?\s+(?:de\s+|del\s+)?(\d{{4}})(?!\d)"), "dMy"),
+    # Chinese / Japanese 2026年12月4日 and Korean 2026년 12월 4일
+    (re.compile(r"(?<!\d)(\d{4})\s*[年년]\s*(\d{1,2})\s*[月월]\s*(\d{1,2})\s*[日일]?"), "ymd"),
+    # Vietnamese: ngày 4 tháng 12 năm 2026 (or "4 tháng 12, 2026")
+    (re.compile(r"(?<!\d)(\d{1,2})\s+tháng\s+(\d{1,2})(?:\s*,|\s+năm)?\s+(\d{4})(?!\d)"), "dmy"),
+    # Day-first numbers, as written in many countries: 04.12.2026
+    (re.compile(r"(?<![\d.])(\d{1,2})\.(\d{1,2})\.(\d{4})(?![\d.])"), "dmy"),
 ]
 
 
 @lru_cache(maxsize=4096)
 def dates_in(text: str) -> frozenset[date]:
     """Every real calendar date written in `text`."""
-    t = " ".join(text.lower().split())
+    t = " ".join(text.lower().translate(_DIGITS).split())
     found = set()
     for pattern, order in _DATE_PATTERNS:
         for m in pattern.finditer(t):
@@ -101,6 +126,8 @@ def dates_in(text: str) -> frozenset[date]:
                 elif order == "mdy":
                     mo, d, y = int(m[1]), int(m[2]), int(m[3])
                     y += 2000 if y < 100 else 0
+                elif order == "dmy":
+                    d, mo, y = int(m[1]), int(m[2]), int(m[3])
                 elif order == "Mdy":
                     mo, d, y = _MONTH[m[1]], int(m[2]), int(m[3])
                 else:
