@@ -26,7 +26,10 @@ importlib._plainspeak_lock = _reload_lock
 with _reload_lock:
     _mods = [importlib.import_module(f"plainspeak.{n}") for n in _MODULES]
     _stamps = [os.path.getmtime(m.__file__) for m in _mods]
-    if any(getattr(m, "_loaded_mtime", None) != t for m, t in zip(_mods, _stamps)):
+    for m, t in zip(_mods, _stamps):   # a file seen for the first time was just loaded fresh: just note its time
+        if getattr(m, "_loaded_mtime", None) is None:
+            m._loaded_mtime = t
+    if any(m._loaded_mtime != t for m, t in zip(_mods, _stamps)):   # something changed since: reload them all
         for m, t in zip(_mods, _stamps):
             importlib.reload(m)._loaded_mtime = t
 
@@ -384,6 +387,8 @@ if req is not None and ai_allowed():
         except AnalyzerError as e:
             monitor.record(monitor.kind_of_error(e.kind))
             st.error(U.get("err_" + e.kind, U["err_other"]), icon="🚫")
+    if "result" in st.session_state:
+        st.rerun()   # redraw from the top, so the results page gets its compact header (answer on screen one)
 
 
 # ---------- Results screen ----------
@@ -410,6 +415,15 @@ def show_result(a: LetterAnalysis, lang_name: str) -> None:
 
     def heading(icon: str, text: str) -> None:
         st.markdown(f'<h3 dir="{direction}">{icon} {esc(text)}</h3>', unsafe_allow_html=True)
+
+    if st.session_state.get("scrolled_for") != key:
+        # A new answer: jump to the top of the page, so the countdown is the first thing you see
+        # (otherwise the browser stays scrolled down where you pressed "Explain").
+        st.session_state.scrolled_for = key
+        # (A fixed snippet of our own code, never anything from a letter or the AI.)
+        st.iframe("<script>for (const el of [window.parent, ...window.parent.document.querySelectorAll("
+                  "'[data-testid=stMain], section.main, .main')]) { try { el.scrollTo({top: 0}); } catch (e) {} }"
+                  "</script>", height=1, tab_index=-1, alt="")
 
     if st.button(f"⬅️ {t['start_over']}", key="start-over"):
         clear_answer()
@@ -482,7 +496,7 @@ def show_result(a: LetterAnalysis, lang_name: str) -> None:
         ics = calendar_export.deadlines_to_ics(verified, today=today)
         if ics:
             st.download_button(f"📆 {t['add_calendar']}", ics, file_name="plainspeak-deadlines.ics",
-                               mime="text/calendar", key="ics",
+                               mime="text/calendar", key="ics", on_click="ignore",
                                help="Opens in Google, Apple or Outlook Calendar, with a reminder 2 days before.")
 
     # --- Steps ---
@@ -573,7 +587,7 @@ def show_result(a: LetterAnalysis, lang_name: str) -> None:
     # --- Keep it ---
     col_print, col_save = st.columns(2)
     col_print.download_button(f"🖨️ {t['print']}", summary_html(a, code), file_name="plainspeak-summary.html",
-                              mime="text/html", use_container_width=True, key="print",
+                              mime="text/html", use_container_width=True, key="print", on_click="ignore",
                               help="A simple page you can print, or send to someone who helps you.")
     if st.session_state.get("saved_id"):
         col_save.caption(f"✓ {t['saved']}")
