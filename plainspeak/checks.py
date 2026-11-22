@@ -31,6 +31,15 @@ def _numbers(s: str) -> list[str]:
     return [n.replace(",", "") for n in re.findall(r"\d[\d,]*(?:\.\d+)?", s)]
 
 
+def _continues_number(after: str) -> bool:
+    """True if `after` (the text right after a match) carries on the number before it: "0" after "$50",
+    or ",000" after "$1". Zero cents (".00") are allowed: "$1,450" is the same amount as "$1,450.00"."""
+    if after[:1].isalnum():
+        return True
+    m = re.match(r"[.,](\d+)", after)
+    return bool(m) and not (after[0] == "." and set(m[1]) == {"0"})
+
+
 @lru_cache(maxsize=4096)
 def quote_location(quote: str, letter_text: str, threshold: float = 0.85) -> tuple[int, int] | None:
     """Where `quote` is in the letter, as (first word, last word) positions, or None if it isn't there."""
@@ -40,8 +49,11 @@ def quote_location(quote: str, letter_text: str, threshold: float = 0.85) -> tup
     q_words = q.split()
     n = len(q_words)
     text = " ".join(words)
-    if q in text:  # exact match: find which word it starts at
-        start = len(text[: text.index(q)].split())
+    for m in re.finditer(re.escape(q), text):   # exact match, but only on whole words and whole numbers
+        before, after = text[:m.start()], text[m.end():]
+        if (before and before[-1].isalnum()) or _continues_number(after):
+            continue          # e.g. "$50" inside "$500": not the same thing
+        start = len(before.split())
         return start, start + n
     needed = _numbers(q)
     for i in range(max(1, len(words) - n + 1)):

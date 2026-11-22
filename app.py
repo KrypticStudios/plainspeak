@@ -413,7 +413,7 @@ def show_basic(req: dict, reason: str, why: str | None = None) -> bool:
     return True
 
 
-if st.session_state.get("pasted"):
+if "pasted" in st.session_state:   # also when they empty the box, so a deleted letter never comes back
     st.session_state.pasted_keep = st.session_state.pasted
 req = st.session_state.pop("request", None)   # take it out first, so a blocked request isn't retried forever
 if req is not None and req.pop("basic", False):
@@ -562,7 +562,9 @@ def show_result(a: LetterAnalysis, lang_name: str) -> None:
     key = st.session_state.get("letter_key", "x")
 
     def card(body: str, extra_class: str = "") -> None:
-        st.markdown(f'<div class="ps-card {extra_class}" dir="{direction}">{body}</div>', unsafe_allow_html=True)
+        # lang= tells screen readers which voice to use (e.g. Spanish, Arabic)
+        st.markdown(f'<div class="ps-card {extra_class}" dir="{direction}" lang="{code}">{body}</div>',
+                    unsafe_allow_html=True)
 
     def heading(icon: str, text: str) -> None:
         st.markdown(f'<h3 dir="{direction}">{icon} {esc(text)}</h3>', unsafe_allow_html=True)

@@ -4,6 +4,7 @@ Flow:  letter (photo, PDF or text)  ->  Gemini  ->  JSON  ->  LetterAnalysis
 The API key is read on the server from .env, so it never reaches the browser.
 """
 
+import logging
 import os
 from datetime import date
 from pathlib import Path
@@ -152,7 +153,9 @@ def _ask_gemini(system_prompt: str, contents: list, answer_shape):
             except errors.ServerError:
                 busy = True   # Google is overloaded or too slow right now -> try again elsewhere
                 continue
-            except Exception:  # network problem or our time limit
+            except Exception as e:  # network problem or our time limit
+                # Log only the kind of error (never the letter), so problems show up in the server log.
+                logging.getLogger("plainspeak").warning("AI call failed: %s", type(e).__name__)
                 busy = True
                 continue
             try:

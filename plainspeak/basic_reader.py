@@ -6,6 +6,7 @@ copied from the letter. It also can't explain anything, and the page says so.
 Works on pasted text and on PDFs that contain real text (not on photos: reading photos needs the AI).
 """
 
+import logging
 import re
 from dataclasses import dataclass, field
 from datetime import date
@@ -99,5 +100,6 @@ def pdf_text(data: bytes, max_pages: int = 5) -> str:
         from pypdf import PdfReader
         reader = PdfReader(BytesIO(data))
         return "\n".join((page.extract_text() or "") for page in reader.pages[:max_pages]).strip()
-    except Exception:
+    except Exception as e:   # a broken or strange PDF: no text (log only the kind of error, never the content)
+        logging.getLogger("plainspeak").warning("PDF text failed: %s", type(e).__name__)
         return ""

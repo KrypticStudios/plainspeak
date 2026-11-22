@@ -238,3 +238,25 @@ def test_reply_never_sees_hidden_id_numbers(monkeypatch):
     at.run()
     [b for b in at.button if (b.key or "").startswith("reply-go-")][0].click().run()
     assert seen and "123-45-6789" not in seen[0]
+
+
+def test_a_quote_with_a_different_amount_is_not_found():
+    letter = "You owe $500.00 by December 4, 2026. Late fee: $1,450.50. Total $1,450.00."
+    assert not checks.quote_found("You owe $50", letter)          # $50 is not $500
+    assert not checks.quote_found("You owe $5", letter)
+    assert not checks.quote_found("Late fee: $1,450.", letter)    # $1,450 is not $1,450.50
+    assert checks.quote_found("You owe $500", letter)             # same amount without the cents
+    assert checks.quote_found("Total $1,450.00", letter)
+    assert checks.quote_found("by December 4, 2026", letter)
+    assert not checks.quote_found("by December 4, 202", letter)
+
+
+def test_an_emptied_paste_box_stays_empty():
+    """Privacy: if someone deletes their letter from the box, it must not come back later."""
+    at = AppTest.from_file(APP, default_timeout=60).run()
+    at.text_area(key="pasted").input(EVICTION).run()
+    at.text_area(key="pasted").input("").run()
+    at.query_params["example"] = "hospital"
+    at.run()
+    [b for b in at.button if b.key == "start-over"][0].click().run()
+    assert at.text_area(key="pasted").value == ""
