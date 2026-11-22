@@ -23,6 +23,9 @@ Eviction notices, hospital bills and benefits renewals are written in legal lang
 - **Lists** the deadlines (with an add-to-calendar file), the steps, the money, who to call, and the reader's rights as stated in the letter.
 - **Answers questions** like "What if I can't pay?" using only the letter. If the letter doesn't say, it says so.
 - **Points to people:** serious letters get "talk to a real person", and every answer shows 211 and LawHelp.org.
+- **Writes a reply for you:** a short, polite letter asking for more time, a payment plan, a hearing, or an explanation. It uses only facts from the letter, puts what you must fill in inside [brackets], and warns you about any number, date, email or link that isn't in your letter.
+- **What to bring:** a checklist of the papers the letter asks for (proof of income, ID, forms).
+- **A private choice, and a backup:** "Don't send my letter to the AI" runs a basic check in plain Python that finds the dates, amounts and phone numbers in the letter's own words. The same check appears automatically if the AI is busy or out of free uses, so people are never left with nothing.
 - **Share:** send a short summary by WhatsApp, text or email to a family member who helps, or print one.
 
 ## Checking the AI's work
@@ -30,34 +33,36 @@ AI can make things up, and a wrong date on an eviction notice is dangerous. So t
 - **The quote is in the letter.** Small wording differences are allowed, but every *number* must match exactly. For pasted text we check against the text you pasted. For photos, there is no independent copy of the text, so we check against the AI's own reading of the photo, and the app says so ("found in what we read from your photo").
 - **The date is written in the letter, in that sentence.** If the letter only says "within 14 days after service", the AI may calculate a date, but that depends on when you received it, so we never put it in the countdown or calendar. If the AI pairs a real sentence with a *different* date from elsewhere in the letter, it is flagged.
 - **Phone numbers are only tap-to-call if they're in the letter.**
+- **Urgency is checked against the calendar.** Our tests showed the AI calls a letter "urgent" even when its deadline is a month away: it isn't reliable at counting days. So the app tells the AI today's date, and plain code lowers "urgent" to "soon" when every verified deadline is more than 14 days away (eviction, court and immigration letters excepted). Exact urgency went from 76% to 94%.
 - The 🧪 demo adds two fake mistakes (an invented deadline, and a real sentence with the wrong date) so you can watch the checks catch them.
 
 ## Testing
-**Evaluation (`eval/`).** We wrote 19 fictional test letters modeled on real public templates (CFPB debt-collection model notice, CMS Medicaid notices, IRS balance-due notice, a state 14-day eviction notice, a court summons, a jury summons and more) and wrote the correct answers by hand. Then we ran PlainSpeak on them as pasted text, as used and stained phone photos, as blurry photos, as scanned PDFs, and in Spanish. Quotes and dates are scored against the *real* letter text. We wrote both the letters and the answers ourselves, so this is a careful self-test, not a study with real users.
+**Evaluation (`eval/`).** We wrote 30 fictional test letters modeled on real public templates (CFPB debt-collection model notice, CMS Medicaid notices, IRS balance-due notice, a state 14-day eviction notice, a court summons, a Section 8 termination notice, a foreclosure notice and more) and wrote the correct answers by hand. We ran PlainSpeak on them as pasted text, as used and stained phone photos, as blurry photos, as scanned PDFs, and in Spanish. Quotes and dates are scored against the *real* letter text. 11 of the letters were written after we wrote the prompt and kept apart as a held-out check. We wrote both the letters and the answers ourselves, so this is a careful self-test, not a study with real users.
 
-| Results (35 runs on 19 letters) | |
+| Results (51 runs on 30 letters) | |
 |---|---|
-| Deadlines found (right date, quote in the letter, date in that sentence) | **97%** (30/31) |
-| Money amounts found | **100%** (20/20) |
-| Quotes that are really in the original letter | **99%** (155/156) |
+| Deadlines found (right date, quote in the letter, date in that sentence) | **98%** (44/45) |
+| Money amounts found | **100%** (31/31) |
+| Quotes that are really in the original letter | **100%** (240/240) |
 | Wrong dates the app would have shown as certain | **0** |
-| Urgency: exact match with our answer / an acceptable answer | **76%** (26/34) / 97% (33/34) |
-| "Talk to a real person" (letters where we set an answer) | **100%** (15/15) |
-| Reading level of letter → summary (pasted English letters) | grade 10.0 → 4.8 |
+| Urgency: exact match with our answer (the AI alone: 78%) | **94%** (47/50) |
+| "Talk to a real person" (letters where we set an answer) | **100%** (21/21) |
+| Held-out letters: deadlines / money / exact urgency | 100% / 100% / 100% |
+| Reading level of letter → summary (pasted English letters) | grade 9.7 → 4.9 |
 | Median time per letter | about 3 s (text) to 4 s (photos and PDFs) |
 | Safety cases: a letter that tries to trick the AI, a non-letter | both handled ✅ |
 
-The main weak spots: urgency is sometimes one level off (the app leans toward "urgent"), and on one stained photo where the deadline was cut off at the edge, the deadline was missed. The guessed date was flagged, not shown as certain.
+The main weak spots: on one stained photo where the deadline was cut off at the edge, the deadline was missed (the guessed date was flagged, not shown as certain), and a jury summons due in 13 days is called "urgent" where we would say "soon".
 
 Full results, including everything it got wrong: [eval/RESULTS.md](eval/RESULTS.md).
 
 **Other tests:**
-- 130+ automated tests (`pytest -q`). They include feeding the page strange AI answers (empty, invalid dates, huge text, injected links and code, right-to-left text) and opening every example in all 11 languages.
+- 188 automated tests (`pytest -q`), including the basic check, reply fact checks, the urgency calendar check, and a check that all 11 languages have every piece of text. They include feeding the page strange AI answers (empty, invalid dates, huge text, injected links and code, right-to-left text) and opening every example in all 11 languages.
 - A full click-through of the live site in Chrome (`tests/e2e_site.py`). It covers all 11 languages on desktop and phone sizes (no sideways scrolling), the calendar and print downloads, share links, two visitors not seeing each other's letters, read-aloud, a live question, a trick letter, a non-letter, and keyboard-only navigation.
 - Hard real-world letters through the live AI (`tests/hard_letters.py`): letters written in Chinese, Vietnamese and Russian, a court letter full of distracting dates, sideways, upside-down and dark photos, and a PDF with real text. All 8 get the right deadlines.
 - Simulated failures (`tests/test_failures.py`): the AI busy, the limit reached, unreadable files, too many questions, and read-aloud down. Each gives a friendly message in the user's language, and pasted text is never lost.
 - A browser test, `tests/e2e_uploads.py`, puts real files through the actual upload button. A phone photo, a scan, a PNG and a 2-page letter are explained. Six kinds of bad file (fake image, half-downloaded photo, giant image, too many pages) are refused with a clear message.
-- An automated accessibility scan with axe-core, `tests/a11y_audit.py`, found 0 WCAG 2.1 AA violations on six pages (English, Spanish, Arabic right-to-left, high contrast). Automated scans catch only some issues. We haven't yet done a full screen-reader test.
+- An automated accessibility scan with axe-core, `tests/a11y_audit.py`, found 0 WCAG 2.1 AA violations on seven pages (English, Spanish, Arabic right-to-left, high contrast, and the basic check without AI). Automated scans catch only some issues. We haven't yet done a full screen-reader test.
 
 ## Privacy and security
 - On the public site, **no letters are written to disk**. Saved letters live in your session in server memory and are gone when you close the page.
@@ -88,10 +93,11 @@ No key? The example letters still work. For testing, run `pip install -r require
 app.py                     the web page
 plainspeak/analyzer.py     sends the letter to Gemini, with our rules (the prompt)
 plainspeak/schema.py       the exact shape the AI must answer in
-plainspeak/checks.py       quote, date and phone checks (no AI)
+plainspeak/checks.py       quote, date, phone, urgency and reply checks (no AI)
+plainspeak/basic_reader.py basic check without AI: dates, amounts, phone numbers
 plainspeak/privacy.py      ID hiding, upload checks, rate limits
 plainspeak/export.py       countdown, printable summary, share message
-plainspeak/ui_start.py, ui_text.py   all text in 11 languages
+plainspeak/ui_start.py, ui_text.py, ui_new.py   all text in 11 languages
 eval/                      evaluation: answer key, scorer, results
 tests/                     unit tests, browser upload test, accessibility scan
 ```
