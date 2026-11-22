@@ -35,6 +35,11 @@ class MoneyItem(BaseModel):
     source_quote: str = Field(description="The exact words copied from the letter that mention this amount.")
 
 
+class DocumentItem(BaseModel):
+    item: str = Field(description="One paper or proof the letter asks the reader to bring or send, in plain words.")
+    source_quote: str = Field(description="The exact words copied from the letter that ask for it.")
+
+
 class LetterAnalysis(BaseModel):
     original_text: str = Field(description="The full text of the letter, transcribed exactly in its original language.")
     document_type: str = Field(description="What kind of letter this is, e.g. 'Eviction notice', 'Medical bill'.")
@@ -46,6 +51,9 @@ class LetterAnalysis(BaseModel):
     actions: list[ActionStep]
     money: list[MoneyItem]
     contacts: list[Contact]
+    documents_to_bring: list[DocumentItem] = Field(
+        default_factory=list, description="Every paper or proof the letter asks the reader to bring or send. "
+                                          "Empty if the letter asks for none.")
     rights: list[str] = Field(description="Rights or protections the letter itself mentions, in plain words. Empty if none.")
     unclear_points: list[str] = Field(description="Anything that is unclear, missing, or that you are unsure about.")
     needs_human_help: bool = Field(description="True if the reader should talk to a real person (lawyer, caseworker, etc.).")
@@ -61,3 +69,14 @@ class QuestionAnswer(BaseModel):
                                                  "Empty if the letter doesn't say.")
     who_to_ask: str = Field(default="", description="If the letter doesn't fully answer it, who could (from the "
                                                     "letter's contacts if possible). Empty otherwise.")
+
+
+class ReplyDraft(BaseModel):
+    """A short reply letter the reader can send back, written only from facts in their letter."""
+    reply_text: str = Field(description="The reply letter, in the SAME language as the original letter, with "
+                                        "[brackets] for everything the reader must fill in.")
+    explanation: str = Field(description="2-3 short sentences in the reader's language: what this reply says.")
+    fill_in: list[str] = Field(description="In the reader's language: each thing in [brackets] they must fill in.")
+    how_to_send: str = Field(description="In the reader's language: where to send it or who to give it to, using "
+                                         "only an address, email or phone written in the letter. Say so if the "
+                                         "letter doesn't say.")

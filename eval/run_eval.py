@@ -23,6 +23,7 @@ import os
 import statistics
 import sys
 import time
+from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -39,6 +40,7 @@ if os.getenv("GEMINI_EVAL_API_KEY"):
     os.environ.pop("GEMINI_BACKUP_API_KEY", None)
 MAX_CALLS = int(os.getenv("EVAL_MAX_CALLS", "60"))   # hard stop, so a run can never use up the whole quota
 PAUSE_SECONDS = 4                                    # be gentle with the free tier's per-minute limit
+TODAY = date(2026, 11, 21)   # the test letters are dated for this day, so urgency is judged against it
 TRICK_WORDS = ("trick", "instruction", "ignore", "manipulat", "suspicious", "ai ")
 
 
@@ -54,7 +56,8 @@ def score(case: dict, a, true_text: str) -> dict:
     verified = [d for d in a.deadlines if checks.deadline_is_trustworthy(d, true_text)]
     found_dates = {d.date for d in verified}
     found_money = {money_key(m.amount) for m in a.money if checks.quote_found(m.source_quote, true_text)}
-    items = [*a.deadlines, *a.actions, *a.money]
+    urgency = checks.calibrated_urgency(a, TODAY)   # what the app shows
+    items = [*a.deadlines, *a.actions, *a.money, *getattr(a, "documents_to_bring", [])]
     r = {
         "deadlines_expected": len(exp.get("deadlines", [])),
         "deadlines_found": sum(d in found_dates for d in exp.get("deadlines", [])),
@@ -69,10 +72,12 @@ def score(case: dict, a, true_text: str) -> dict:
         "wrong_dates_shown_as_sure": [d.date for d in a.deadlines
                                       if checks.deadline_is_trustworthy(d, a.original_text)
                                       and not checks.deadline_is_trustworthy(d, true_text)],
-        "urgency": a.urgency,
+        "urgency": urgency,
+        "urgency_ai": a.urgency,
         "urgency_best": exp.get("urgency_best"),
-        "urgency_exact": exp.get("urgency_best") == a.urgency if exp.get("urgency_best") else None,
-        "urgency_ok": a.urgency in exp.get("urgency", ["low", "medium", "high"]),
+        "urgency_exact": exp.get("urgency_best") == urgency if exp.get("urgency_best") else None,
+        "urgency_ai_exact": exp.get("urgency_best") == a.urgency if exp.get("urgency_best") else None,
+        "urgency_ok": urgency in exp.get("urgency", ["low", "medium", "high"]),
         "human_help": a.needs_human_help,
         "human_help_ok": (exp.get("needs_human_help") == a.needs_human_help)
         if exp.get("needs_human_help") is not None else None,
@@ -80,6 +85,8 @@ def score(case: dict, a, true_text: str) -> dict:
         "grade_summary": checks.reading_grade(a.summary),
         "document_type": a.document_type,
         "confidence": a.confidence,
+        "deadlines_raw": [d.model_dump() for d in a.deadlines],   # so we can re-score later without the AI
+        "documents_to_bring": [x.item for x in getattr(a, "documents_to_bring", [])],
     }
     if exp.get("no_deadlines"):
         r["false_deadlines"] = [d.date for d in verified]
@@ -92,8 +99,8 @@ def score(case: dict, a, true_text: str) -> dict:
     return r
 
 
-def run(quick: bool = False) -> None:
-    cases = json.loads((HERE / "cases.json").read_text())
+def run(quick: bool = False, split: str = "all", out: str = "results") -> None:
+    cases = [c for c in json.loads((HERE / "cases.json").read_text()) if split in ("all", c.get("split", "tune"))]
     results, calls, stop = [], 0, False
     for case in cases:
         text = (HERE / "letters" / case["file"]).read_text()
@@ -112,12 +119,13 @@ def run(quick: bool = False) -> None:
                 kwargs = {"files": [prepare_image(data, mime)]}
             start = time.time()
             try:
-                row = score(case, analyze_letter(language, **kwargs), text)
+                row = score(case, analyze_letter(language, **kwargs, today=TODAY), text)
                 row["error"] = None
             except AnalyzerError as e:
                 row = {"error": str(e)}
                 stop = e.kind == "limit"   # keep the rest of the quota for the demo
-            row.update(id=case["id"], variant=variant, seconds=round(time.time() - start, 1))
+            row.update(id=case["id"], variant=variant, split=case.get("split", "tune"),
+                       seconds=round(time.time() - start, 1))
             results.append(row)
             status = "ERROR " + row["error"] if row["error"] else (
                 f"dates {row['deadlines_found']}/{row['deadlines_expected']}  money {row['money_found']}/"
@@ -127,8 +135,11 @@ def run(quick: bool = False) -> None:
             time.sleep(PAUSE_SECONDS)
     if stop:
         print(f"Stopped early after {calls} AI calls (limit reached).")
-    (HERE / "results.json").write_text(json.dumps(results, indent=2, ensure_ascii=False))
-    write_summary(cases, results)
+    (HERE / f"{out}.json").write_text(json.dumps(results, indent=2, ensure_ascii=False))
+    if out == "results":
+        write_summary(cases, results)
+    else:
+        print(f"Saved eval/{out}.json")
 
 
 def pct(part: int, whole: int) -> str:
@@ -167,6 +178,17 @@ def write_summary(cases: list, results: list) -> None:
         md.append(f"| Reading level, letter → summary (average US grade, pasted English letters) | grade "
                   f"{statistics.mean(r['grade_letter'] for r in english_text):.1f} → "
                   f"{statistics.mean(r['grade_summary'] for r in english_text):.1f} |")
+    ai_exact = [r for r in letters if r.get("urgency_ai_exact") is not None]
+    if ai_exact:
+        md.insert(md.index(next(x for x in md if x.startswith("| Urgency: an acceptable"))),
+                  f"| Urgency: the AI's own answer, before our calendar check | {pct(sum(r['urgency_ai_exact'] for r in ai_exact), len(ai_exact))} |")
+    held = [r for r in letters if r.get("split") == "holdout"]
+    if held:
+        hx = [r for r in held if r["urgency_exact"] is not None]
+        md.append(f"| **Held-out letters** (written after tuning, never used to tune): deadlines / money / "
+                  f"exact urgency | {pct(total('deadlines_found', held), total('deadlines_expected', held))} / "
+                  f"{pct(total('money_found', held), total('money_expected', held))} / "
+                  f"{pct(sum(r['urgency_exact'] for r in hx), len(hx))} |")
     errors = [r for r in results if r["error"]]
     md += [f"| Runs that failed with an error | {len(errors)} of {len(results)} |", "",
            "## By input type", "| Input | Runs | Deadlines found | Quotes really in the letter | Median time |",
@@ -207,4 +229,6 @@ def write_summary(cases: list, results: list) -> None:
 
 
 if __name__ == "__main__":
-    run(quick="--quick" in sys.argv)
+    args = sys.argv[1:]
+    pick = lambda flag, default: args[args.index(flag) + 1] if flag in args else default  # noqa: E731
+    run(quick="--quick" in args, split=pick("--split", "all"), out=pick("--out", "results"))

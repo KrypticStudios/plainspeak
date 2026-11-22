@@ -198,3 +198,82 @@ def reading_grade(text: str) -> float | None:
     if len(text.split()) < 10:
         return None
     return round(max(0.0, textstat.flesch_kincaid_grade(text)), 1)
+
+
+# ---------------------------------------------------------------- reply letters
+
+
+def numbers_not_in_letter(text: str, letter_text: str, today: date | None = None) -> list[str]:
+    """Dates, amounts and long numbers in `text` (an AI-written reply) that are NOT in the letter.
+
+    Anything inside [brackets] is for the reader to fill in, so it is skipped. Today's date is allowed
+    (a reply starts with it). Small numbers (days, months) are only checked as part of a full date."""
+    text = re.sub(r"\[[^\]]*\]", " ", text)
+    problems = []
+    allowed_dates = set(dates_in(letter_text)) | ({today} if today else set())
+    problems += [d.isoformat() for d in sorted(dates_in(text) - allowed_dates)]
+
+    def value(n: str) -> float | None:
+        try:
+            return round(float(n.replace(",", "")), 2)
+        except ValueError:
+            return None
+    # Money: every amount must be an amount (or number) written in the letter, exactly.
+    letter_values = {value(n) for n in _numbers(letter_text)}
+    for amount in dict.fromkeys(re.findall(r"\$\s?(\d[\d,]*(?:\.\d+)?)", text)):
+        if value(amount) not in letter_values:
+            problems.append("$" + amount)
+    text = re.sub(r"\$\s?\d[\d,]*(?:\.\d+)?", " ", text)
+    # Other long numbers (phone numbers, account or case numbers) must be in the letter too.
+    in_letter = {n.lstrip("0") for n in _numbers(letter_text)}
+    if today:
+        in_letter |= {str(today.year), str(today.day), str(today.month)}
+    for n in dict.fromkeys(_numbers(text)):
+        n = n.rstrip(".")
+        whole = n.split(".")[0]
+        is_year = len(n) == 4 and n.isdigit() and 1990 <= int(n) <= 2100
+        if (("." in n) or len(whole) >= 3) and not is_year and n.lstrip("0") not in in_letter:
+            problems.append(n)
+    return problems
+
+
+# ---------------------------------------------------------------- urgency
+
+# Letters where "urgent" stays urgent whatever the date: losing a home, a court case, immigration.
+ALWAYS_SERIOUS = re.compile(r"\b(summons|evict|vacate|or quit|foreclos|immigration|uscis|biometric|deport|"
+                            r"removal proceedings|desalojo|corte\b)")
+
+
+def calibrated_urgency(analysis, today: date) -> str:
+    """The AI's urgency, checked against the calendar by plain code.
+
+    Our tests showed the AI often calls a letter "urgent" when its deadline is 3-4 weeks away: it is
+    not reliable at counting days. So when the AI says "high", but every deadline we could VERIFY in
+    the letter is more than 14 days from today, we show "medium" ("soon") instead. Housing, court and
+    immigration letters are left as the AI said, and a deadline that already passed stays urgent.
+    We only ever LOWER urgency here, never raise it; the countdown shows how close a date is.
+    """
+    if analysis.urgency != "high":
+        return analysis.urgency
+    text = analysis.original_text.lower()
+    if ALWAYS_SERIOUS.search(text):
+        return "high"
+    ahead = []
+    for d in analysis.deadlines:
+        day = _parse_iso(d.date)
+        if day and deadline_is_trustworthy(d, analysis.original_text):
+            if day < today:
+                return "high"            # a deadline already passed: that is urgent
+            ahead.append((day - today).days)
+    return "medium" if ahead and min(ahead) > 14 else "high"
+
+
+def contacts_not_in_letter(text: str, letter_text: str) -> list[str]:
+    """Email addresses, web links and phone numbers in `text` that are NOT in the letter.
+    (A tricky letter could try to get a reply sent to a scammer's address.)"""
+    low = letter_text.lower()
+    found = [e for e in re.findall(r"[\w.+-]+@[\w-]+\.[\w.-]+", text) if e.lower().rstrip(".") not in low]
+    found += [u for u in re.findall(r"(?:https?://|www\.)\S+", text) if u.lower().rstrip(".,)") not in low]
+    found += [p for p in re.findall(r"\+?\d[\d\s().-]{8,}\d", text)
+              if len(re.sub(r"\D", "", p)) >= 10 and not phone_in_letter(p, letter_text)]
+    return found

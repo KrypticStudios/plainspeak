@@ -575,4 +575,6 @@ MORE = {
 
 def ui(lang_code: str) -> dict[str, str]:
     """Start-screen, sidebar and message text for a language; anything missing falls back to English."""
-    return {**UI["en"], **MORE["en"], **UI.get(lang_code, {}), **MORE.get(lang_code, {})}
+    from .ui_new import NEW
+    return {**UI["en"], **MORE["en"], **NEW["en"], **UI.get(lang_code, {}), **MORE.get(lang_code, {}),
+            **NEW.get(lang_code, {})}

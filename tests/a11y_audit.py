@@ -16,6 +16,7 @@ PAGES = {
     "results (Arabic, right-to-left)": "/?example=eviction&lang=ar",
     "results (high contrast + large text)": "/?example=benefits&contrast=1&bigtext=1",
     "start (Spanish)": "/?lang=es",
+    "basic check without AI": "/",
 }
 
 total = 0
@@ -26,6 +27,16 @@ with sync_playwright() as p:
         page.goto(BASE + path)
         page.wait_for_selector("h1", timeout=60_000)
         page.wait_for_timeout(2500)
+        if name.startswith("basic check"):   # the no-AI check needs a few clicks to reach
+            page.get_by_text("Don't send my letter to the AI").click()
+            page.get_by_role("tab", name="Paste").click() if page.get_by_role("tab", name="Paste").count() else \
+                page.locator("[role=tab]").nth(1).click()
+            page.locator("textarea").first.fill(open("samples/eviction_notice.txt").read())
+            page.locator("textarea").first.press("Control+Enter")
+            page.wait_for_timeout(800)
+            page.get_by_role("button", name="Explain").last.click()
+            page.wait_for_selector("text=Basic check", timeout=30_000)
+            page.wait_for_timeout(1500)
         page.add_script_tag(url=AXE)
         result = page.evaluate("""async () => {
             const r = await axe.run(document, {runOnly: {type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21aa']}});

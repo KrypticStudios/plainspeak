@@ -19,7 +19,7 @@ import plainspeak.schema  # noqa: F401  (loaded first: the other files use it)
 # Streamlit Cloud updates the app when we push to GitHub, but it can keep running OLD copies of our
 # other files (plainspeak/*.py). That once crashed the live site. So: if ANY of our files changed on
 # disk, reload ALL of them, in order (files that others import come first), one visitor at a time.
-_MODULES = ["schema", "checks", "ui_text", "ui_start", "speech", "calendar_export", "export", "images",
+_MODULES = ["schema", "checks", "basic_reader", "ui_new", "ui_text", "ui_start", "speech", "calendar_export", "export", "images",
             "privacy", "history", "demo", "analyzer", "monitor"]
 _reload_lock = getattr(importlib, "_plainspeak_lock", None) or threading.Lock()
 importlib._plainspeak_lock = _reload_lock
@@ -33,8 +33,8 @@ with _reload_lock:
         for m, t in zip(_mods, _stamps):
             importlib.reload(m)._loaded_mtime = t
 
-from plainspeak import calendar_export, checks, demo, history, monitor  # noqa: E402
-from plainspeak.analyzer import AnalyzerError, analyze_letter, ask_question, has_api_key  # noqa: E402
+from plainspeak import basic_reader, calendar_export, checks, demo, history, monitor  # noqa: E402
+from plainspeak.analyzer import AnalyzerError, analyze_letter, ask_question, draft_reply, has_api_key  # noqa: E402
 from plainspeak.export import next_deadline, share_links, share_text, summary_html  # noqa: E402
 from plainspeak.images import prepare_image  # noqa: E402
 from plainspeak.privacy import MAX_TEXT_CHARS, RateLimiter, check_letter, check_upload, redact  # noqa: E402
@@ -93,7 +93,8 @@ def limiters() -> dict[str, RateLimiter]:
     """Shared by every visitor (each request can make at most 4 AI calls, see analyzer.MAX_ATTEMPTS)."""
     return {"visitor": RateLimiter(limit=6, window=600),          # 6 letters/questions per 10 minutes
             "site": RateLimiter(limit=int(os.getenv("MAX_DAILY_AI_CALLS", "300")), window=86_400),
-            "tts": RateLimiter(limit=10, window=600)}             # read-aloud: 10 per 10 minutes
+            "tts": RateLimiter(limit=10, window=600),             # read-aloud: 10 per 10 minutes
+            "basic": RateLimiter(limit=30, window=600)}           # no-AI check: cheap, but not unlimited
 
 
 def ai_allowed() -> bool:
@@ -156,14 +157,14 @@ def show_answer(result: LetterAnalysis, lang_name: str, source: str, notice: str
     st.session_state.result_source = source
     st.session_state.letter_key = uuid.uuid4().hex[:8]   # fresh checkboxes for every letter
     st.session_state.saved_id = None
-    for key in ("audio", "qa", "notice"):
+    for key in ("audio", "qa", "notice", "basic", "reply"):
         st.session_state.pop(key, None)
     if notice:
         st.session_state.notice = notice
 
 
 def clear_answer() -> None:
-    for key in ("result", "result_lang", "result_source", "saved_id", "audio", "qa", "notice"):
+    for key in ("result", "result_lang", "result_source", "saved_id", "audio", "qa", "notice", "basic", "reply"):
         st.session_state.pop(key, None)
 
 
@@ -322,6 +323,9 @@ def start_screen() -> None:
         st.info(U["demo_mode"], icon="ℹ️")
     st.caption(U["privacy_line"])   # visible BEFORE anyone uploads, not hidden in a menu
 
+    # Privacy choice: plain-Python check only, nothing goes to the AI (also works when there is no AI key).
+    no_ai = st.toggle("🔐 " + U["no_ai_toggle"], key="no_ai", help=U["no_ai_help"])
+    can_go = has_api_key() or no_ai
     tab_photo, tab_text = st.tabs([U["tab_photo"], U["tab_paste"]])
 
     with tab_photo:
@@ -342,25 +346,28 @@ def start_screen() -> None:
             for problem in problems:
                 st.error(problem, icon="🚫")
             label = f"{U['explain']} ({len(pages)} {U['page'] if len(pages) == 1 else U['pages']})"
-            if st.button(label, type="primary", key="go-photo", disabled=not has_api_key() or bool(problems),
+            if st.button(label, type="primary", key="go-photo", disabled=not can_go or bool(problems),
                          use_container_width=True):
                 # Check again here on the server: a disabled button in the browser is not a real lock.
                 if not upload_problems(pages):
                     st.session_state.request = {"files": [prepare_image(p.getvalue(), p.type) for p in pages],
-                                                "source": "photo"}
+                                                "source": "photo", "basic": no_ai}
                     st.rerun()
 
     with tab_text:
+        # Streamlit forgets a text box's words while another screen is shown; put them back.
+        if "pasted" not in st.session_state and st.session_state.get("pasted_keep"):
+            st.session_state.pasted = st.session_state.pasted_keep
         pasted = st.text_area(U["paste_label"], height=180, max_chars=MAX_TEXT_CHARS, key="pasted",
                               placeholder=U["paste_placeholder"])
         st.caption(U["ids_note"])
-        if st.button(U["explain"], type="primary", key="go-text", disabled=not has_api_key(),
+        if st.button(U["explain"], type="primary", key="go-text", disabled=not can_go,
                      use_container_width=True):
             if pasted.strip():
                 clean, hidden = redact(pasted[:MAX_TEXT_CHARS])
                 if hidden:
                     monitor.record("ids_hidden")
-                st.session_state.request = {"text": clean, "source": "text",
+                st.session_state.request = {"text": clean, "source": "text", "basic": no_ai,
                                             "notice": U["ids_hidden"].format(n=hidden) if hidden else None}
                 st.rerun()
             else:
@@ -387,17 +394,50 @@ def start_screen() -> None:
 
 
 # ---------- Run the AI ----------
+def letter_words(req: dict) -> str:
+    """The letter's own words, if we have them without the AI: pasted text, or the text inside a real PDF."""
+    if req.get("text", "").strip():
+        return req["text"]
+    texts = [basic_reader.pdf_text(data) for data, mime in req.get("files", []) if mime == "application/pdf"]
+    return redact("\n\n".join(t for t in texts if t)[:MAX_TEXT_CHARS])[0]
+
+
+def show_basic(req: dict, reason: str, why: str | None = None) -> bool:
+    """Switch to the basic (no-AI) check. False if there are no words to check (a photo)."""
+    words = letter_words(req)
+    if not words.strip():
+        return False
+    clear_answer()
+    st.session_state.basic = {"text": words, "reason": reason, "why": why}
+    monitor.record("basic_check")
+    return True
+
+
+if st.session_state.get("pasted"):
+    st.session_state.pasted_keep = st.session_state.pasted
 req = st.session_state.pop("request", None)   # take it out first, so a blocked request isn't retried forever
-if req is not None and ai_allowed():
+if req is not None and req.pop("basic", False):
+    if not limiters()["basic"].allow(visitor_id()):
+        st.warning(U["slow_down"], icon="⏳")
+    elif not show_basic(req, "private"):
+        st.warning(U["basic_photo"], icon="📷")
+elif req is not None and not ai_allowed():
+    if req.get("source") != "example":
+        show_basic(req, "down", U["daily_limit"])   # over the limit: plain code still finds dates and amounts
+elif req is not None:
     source, notice = req.pop("source", "text"), req.pop("notice", None)
     with st.spinner(U["spinner"]):
         try:
-            show_answer(analyze_letter(language, **req), language, source, notice)
+            show_answer(analyze_letter(language, **req, today=visitor_today()), language, source, notice)
             monitor.record("letter_ok")
         except AnalyzerError as e:
             monitor.record(monitor.kind_of_error(e.kind))
             st.error(U.get("err_" + e.kind, U["err_other"]), icon="🚫")
-    if "result" in st.session_state:
+            # The AI is down or out of free uses: still show what plain code can find in the letter.
+            if e.kind not in ("unreadable", "too_long", "empty") and source != "example" and \
+                    not show_basic(req, "down", U.get("err_" + e.kind, U["err_other"])):
+                st.caption("📷 " + U["basic_photo"])
+    if "result" in st.session_state or "basic" in st.session_state:
         st.rerun()   # redraw from the top, so the results page gets its compact header (answer on screen one)
 
 
@@ -410,6 +450,107 @@ def quote_html(quote: str, letter: str, t: dict) -> str:
     else:
         badge = f'<span class="ps-warn">⚠ {esc(t["not_found"])}</span>'
     return f'<div class="ps-quote" dir="auto">“{esc(quote)}” — {badge}</div>'   # "auto": Arabic letters too
+
+
+def reply_purposes(a: LetterAnalysis) -> list[str]:
+    """The kinds of reply that make sense for this letter."""
+    words = a.original_text.lower()
+    purposes = ["more_time"] if a.deadlines else []
+    purposes += ["payment_plan"] if a.money else []
+    purposes += ["hearing"] if any(w in words for w in ("hearing", "appeal", "reconsideration", "review",
+                                                         "audiencia", "apelación")) else []
+    return purposes + ["dispute", "questions"]
+
+
+def show_reply_writer(a: LetterAnalysis, lang_name: str, t: dict, card, heading, today: date) -> None:
+    """Write a reply the reader can send back: only facts from their letter, [brackets] for what they fill in."""
+    heading("✍️", t["reply_title"])
+    st.caption(t["reply_help"])
+    key = st.session_state.get("letter_key", "x")
+    purposes = reply_purposes(a)
+    purpose = st.radio(t["reply_title"], purposes, format_func=lambda p: t["reply_" + p], key=f"reply-kind-{key}",
+                       label_visibility="collapsed", horizontal=True)
+    if st.button(f"✍️ {t['reply_make']}", key=f"reply-go-{key}", disabled=not has_api_key()):
+        if ai_allowed():
+            with st.spinner("…"):
+                try:
+                    # ID numbers are hidden again first (a photo's reading may contain them)
+                    draft = draft_reply(redact(a.original_text)[0], purpose, lang_name, today=today)
+                    st.session_state.reply = (key, purpose, draft, uuid.uuid4().hex[:6])
+                    monitor.record("reply_ok")
+                except AnalyzerError as e:
+                    monitor.record(monitor.kind_of_error(e.kind))
+                    st.error(t.get("err_" + e.kind, t["err_other"]), icon="🚫")
+    if not has_api_key():
+        st.caption(t["type_needs_key"])
+    saved = st.session_state.get("reply")
+    if not saved or saved[0] != key:
+        return
+    _, purpose, draft, nonce = saved   # a new draft gets a new box (Streamlit would keep the old words)
+    card(f"<b>💬 {esc(t['reply_explain'])}:</b> {esc(draft.explanation)}")
+    # Editable, so they can fix it before they send it. Plain text: nothing in it is run as code.
+    text = st.text_area(t["reply_title"], draft.reply_text, height=320, key=f"reply-text-{key}-{nonce}",
+                        label_visibility="collapsed")
+    unsupported = checks.numbers_not_in_letter(text, a.original_text, today=today)
+    unsupported += checks.contacts_not_in_letter(text + "\n" + draft.how_to_send, a.original_text)
+    if unsupported:
+        st.warning(f"{t['reply_bad_numbers']} {md(', '.join(unsupported))}", icon="⚠️")
+    if draft.fill_in:
+        card(f"<b>📝 {esc(t['reply_fill'])}:</b><br>" + "<br>".join(f"• {esc(x)}" for x in draft.fill_in))
+    if draft.how_to_send:
+        card(f"<b>📬 {esc(t['reply_send'])}:</b> {esc(draft.how_to_send)}")
+    st.download_button(f"⬇️ {t['reply_download']}", text, file_name="plainspeak-reply.txt", mime="text/plain",
+                       key=f"reply-dl-{key}", on_click="ignore")
+    st.caption("⚠️ " + t["reply_check"])
+
+
+def show_basic_result(b: dict) -> None:
+    """The no-AI check: dates, money and phone numbers found by plain code, each next to its own sentence."""
+    code = LANGUAGES.get(language, "en")
+    t = {**ui(code), **labels(code)}
+    direction = "rtl" if code in RTL_LANGUAGES else "ltr"
+    today = visitor_today()
+    r = basic_reader.read(b["text"], today=today)
+    shown = 30   # at most this many of each, so a strange file can't make a page with thousands of cards
+
+    def card(body: str, extra_class: str = "") -> None:
+        st.markdown(f'<div class="ps-card {extra_class}" dir="{direction}">{body}</div>', unsafe_allow_html=True)
+
+    if st.button(f"⬅️ {t['start_over']}", key="start-over"):
+        clear_answer()
+        st.rerun()
+    st.markdown(f'<h2 dir="{direction}">⚙️ {esc(t["basic_title"])}</h2>', unsafe_allow_html=True)
+    if b.get("why"):
+        st.error(b["why"], icon="🚫")   # why the AI couldn't help (in the reader's language)
+    st.info(t["basic_private_intro"] if b["reason"] == "private" else t["basic_intro"], icon="ℹ️")
+    if r.serious_words:
+        st.warning(f"**{md(t['basic_serious'])}** {md(', '.join(r.serious_words))}. {md(t['basic_serious_help'])}",
+                   icon="⚠️")
+
+    def sentence(s: str) -> str:
+        return f'<div class="ps-quote" dir="auto">“{esc(s)}”</div>'
+
+    if r.dates:
+        st.markdown(f"### 📅 {esc(t['basic_dates'])}")
+        for d, s in r.dates[:shown]:
+            days = (d - today).days
+            # Plain code can't tell which date is a deadline, so this only says how far away each date is.
+            when = t["basic_in_days"].format(n=days) if days > 0 else t["basic_passed"] if days < 0 else "📍"
+            card(f"<b>{esc(friendly_date(d.isoformat(), code))}</b> — {esc(when)}{sentence(s)}")
+    if r.money:
+        st.markdown(f"### 💵 {esc(t['basic_money'])}")
+        for amount, s in r.money[:shown]:
+            card(f"<b>{esc(amount)}</b>{sentence(s)}")
+    if r.phones:
+        st.markdown(f"### ☎️ {esc(t['basic_phones'])}")
+        card("<br>".join(f'📞 <a href="tel:{"".join(ch for ch in p if ch.isdigit())}">{esc(p)}</a>'
+                         for p in r.phones[:shown]))
+    if not r.found_anything:
+        st.info(t["basic_none"])
+    st.markdown(f"### 🤝 {esc(t['free_help'])}")
+    st.markdown(f"📞 {t['help_211']}\n\n⚖️ {t['help_law']}")
+    with st.expander(t["show_original"]):
+        st.text(b["text"])
 
 
 def show_result(a: LetterAnalysis, lang_name: str) -> None:
@@ -443,7 +584,8 @@ def show_result(a: LetterAnalysis, lang_name: str) -> None:
         st.info(st.session_state.notice, icon="ℹ️")
 
     # --- At a glance: urgency, countdown, first step (first, so it's on a phone's first screen) ---
-    icon = {"high": f"🔴 {t['urgent']}", "medium": f"🟠 {t['soon']}", "low": f"🟢 {t['not_urgent']}"}[a.urgency]
+    urgency = checks.calibrated_urgency(a, today)   # the AI's urgency, checked against the calendar
+    icon = {"high": f"🔴 {t['urgent']}", "medium": f"🟠 {t['soon']}", "low": f"🟢 {t['not_urgent']}"}[urgency]
     glance = f'<div style="font-size:1.15em;font-weight:700">📄 {esc(a.document_type)}</div>' \
              f'<hr style="margin:.5rem 0"><b>{icon}</b> — {esc(a.urgency_reason)}'
     nxt = next_deadline(a, today=today)
@@ -455,7 +597,7 @@ def show_result(a: LetterAnalysis, lang_name: str) -> None:
                    f'{esc(t["next_deadline"])}: <b>{esc(friendly_date(d.date, code))}</b> — {esc(d.what)}')
     if a.actions:
         glance += f'<hr style="margin:.6rem 0">👉 <b>{esc(t["first_step"])}:</b> {esc(a.actions[0].step)}'
-    card(glance, f"ps-{a.urgency}")
+    card(glance, f"ps-{urgency}")
     st.caption(f"{t['from']}: {md(a.sender)}")
 
     # --- Summary + read aloud ---
@@ -515,6 +657,13 @@ def show_result(a: LetterAnalysis, lang_name: str) -> None:
         for i, s in enumerate(a.actions):
             st.checkbox(md(s.step), key=f"step-{key}-{i}")
             st.markdown(quote_html(s.source_quote, letter, t), unsafe_allow_html=True)
+
+    # --- Papers to bring or send ---
+    if a.documents_to_bring:
+        heading("📎", t["docs_title"])
+        for i, doc in enumerate(a.documents_to_bring):
+            st.checkbox(md(doc.item), key=f"doc-{key}-{i}")
+            st.markdown(quote_html(doc.source_quote, letter, t), unsafe_allow_html=True)
 
     # --- Money ---
     if a.money:
@@ -581,6 +730,8 @@ def show_result(a: LetterAnalysis, lang_name: str) -> None:
             body += f"<br>👤 <b>{esc(t['who_to_ask'])}:</b> {esc(ans.who_to_ask)}"
         card(body)
 
+    show_reply_writer(a, lang_name, t, card, heading, today)
+
     if a.confidence != "high" or a.unclear_points:
         sure = {"high": "", "medium": " (?)", "low": " (??)"}[a.confidence]
         heading("❓", t["not_sure"] + sure)
@@ -619,5 +770,7 @@ def show_result(a: LetterAnalysis, lang_name: str) -> None:
 
 if "result" in st.session_state:
     show_result(st.session_state.result, st.session_state.get("result_lang", language))
+elif "basic" in st.session_state:
+    show_basic_result(st.session_state.basic)
 else:
     start_screen()

@@ -15,3 +15,5 @@ eval/letters/
 eval/rendered/
 eval/results.json
 .tools/
+eval/*.json
+!eval/cases.json

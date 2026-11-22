@@ -44,6 +44,11 @@ def test_ai_failures_show_a_friendly_translated_message(monkeypatch, kind, lang)
     assert "technical detail" not in text and "GEMINI" not in text
     expected = ui(lang).get("err_" + kind, ui(lang)["err_other"])
     assert expected in text
+    if kind in ("limit", "busy", "setup", "other", "something_new"):
+        # The AI can't help right now: plain code still shows the dates and amounts from the pasted letter
+        assert any(ui(lang)["basic_title"] in m.value for m in at.markdown)
+        assert any("December" in m.value or "2026" in m.value for m in at.markdown)
+        [b for b in at.button if b.key == "start-over"][0].click().run()
     assert at.text_area(key="pasted").value.startswith("SAMPLE LETTER")   # what they pasted is not lost
 
 

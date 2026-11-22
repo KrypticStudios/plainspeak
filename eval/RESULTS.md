@@ -1,29 +1,31 @@
 # PlainSpeak evaluation results
 
-Run on November 21, 2026 with the real Gemini API (`gemini-3.5-flash-lite`), on **19 test letters** modeled on real public templates (see `cases.json`), **35 runs** (pasted text, phone-style photos, blurry photos, scanned PDFs, Spanish output).
+Run on November 21, 2026 with the real Gemini API (`gemini-3.5-flash-lite`), on **30 test letters** modeled on real public templates (see `cases.json`), **51 runs** (pasted text, phone-style photos, blurry photos, scanned PDFs, Spanish output).
 
 **How to read this:** we wrote the test letters and the correct answers ourselves (with our AI coding assistant). Quotes and deadlines are checked against the *real* letter text, not the AI's own reading of it. This is a careful self-test, not a study with real users.
 
 | What we measured | Result |
 |---|---|
-| Deadlines found (right date, quote really in the letter, date in that sentence) | **97% (30/31)** |
-| Money amounts found (quote really in the letter) | **100% (20/20)** |
-| Quotes that are really in the original letter | **99% (155/156)** |
+| Deadlines found (right date, quote really in the letter, date in that sentence) | **98% (44/45)** |
+| Money amounts found (quote really in the letter) | **100% (31/31)** |
+| Quotes that are really in the original letter | **100% (240/240)** |
 | Wrong dates the app would have shown as certain | **0** |
-| Urgency: exact match with our answer | **76% (26/34)** |
-| Urgency: an acceptable answer | 97% (33/34) |
-| "Talk to a real person" (only letters where we set an answer) | **100% (15/15)** |
-| Reading level, letter → summary (average US grade, pasted English letters) | grade 10.0 → 4.8 |
-| Runs that failed with an error | 0 of 35 |
+| Urgency: exact match with our answer | **94% (47/50)** |
+| Urgency: the AI's own answer, before our calendar check | 78% (39/50) |
+| Urgency: an acceptable answer | 100% (50/50) |
+| "Talk to a real person" (only letters where we set an answer) | **100% (21/21)** |
+| Reading level, letter → summary (average US grade, pasted English letters) | grade 9.7 → 4.9 |
+| **Held-out letters** (written after tuning, never used to tune): deadlines / money / exact urgency | 100% (14/14) / 100% (11/11) / 100% (16/16) |
+| Runs that failed with an error | 0 of 51 |
 
 ## By input type
 | Input | Runs | Deadlines found | Quotes really in the letter | Median time |
 |---|---|---|---|---|
-| Pasted text | 18 | 100% (17/17) | 100% (79/79) | 3.0 s |
-| Used, folded, stained phone photo | 6 | 80% (4/5) | 97% (32/33) | 3.8 s |
-| Blurry low-quality phone photo | 3 | 100% (3/3) | 100% (18/18) | 3.7 s |
-| Scanned PDF | 4 | 100% (3/3) | 100% (13/13) | 3.9 s |
-| Explained in Spanish | 3 | 100% (3/3) | 100% (13/13) | 3.4 s |
+| Pasted text | 29 | 100% (26/26) | 100% (133/133) | 2.7 s |
+| Used, folded, stained phone photo | 8 | 86% (6/7) | 100% (46/46) | 3.5 s |
+| Blurry low-quality phone photo | 4 | 100% (4/4) | 100% (24/24) | 3.2 s |
+| Scanned PDF | 5 | 100% (4/4) | 100% (18/18) | 3.3 s |
+| Explained in Spanish | 4 | 100% (4/4) | 100% (19/19) | 3.1 s |
 
 ## Safety cases
 | Letter | Passed? |
@@ -32,21 +34,26 @@ Run on November 21, 2026 with the real Gemini API (`gemini-3.5-flash-lite`), on 
 | `19_not_a_letter_flyer` | ✅ |
 
 ## Everything it got wrong
-- `02_food_benefits_renewal` (text): urgency **high**, we expected medium
-- `05_medicaid_renewal_notice` (text): urgency **high**, we expected medium
-- `05_medicaid_renewal_notice` (scanned_pdf): urgency **high**, we expected medium
-- `09_utility_final_termination` (text): urgency **high**, we expected medium
-- `09_utility_final_termination` (used_photo): urgency **high**, we expected medium
-- `09_utility_final_termination` (used_photo): 1 quote(s) not in the real letter
+- `10_jury_summons` (text): urgency **high**, we expected medium
+- `10_jury_summons` (scanned_pdf): urgency **high**, we expected medium
 - `13_unemployment_overpayment` (used_photo): missed deadlines ['2026-12-21'], amounts []
-- `13_unemployment_overpayment` (used_photo): dates not in the letter ['2026-12-20'] (shown as certain: no, flagged)
-- `14_school_truancy_notice` (text): urgency **low**, we expected medium
-- `15_rent_increase_notice` (text): urgency **medium**, we expected low
-- `17_housing_recert_spanish` (text): urgency **medium**, we expected high
+- `13_unemployment_overpayment` (used_photo): urgency **high**, we expected medium
 
 ## Notes
-- The missed deadline was on a stained photo where the page's right edge (with "NO LATER THAN 12/21/2026") was cut off. The AI calculated 30 days itself and got 12/20. Our date check flagged that date instead of showing it as certain.
-- Urgency misses are judgment calls. The model tends to call shutoff and coverage-loss letters "high" even when the deadline is 3–4 weeks away. We tightened the prompt rule; it still leans cautious.
-- Earlier versions of this evaluation (in git history) checked quotes against the AI's own reading, and gave urgency credit for any acceptable level. An independent review pointed out that this flattered the numbers, so this version scores against the real letter text and reports exact urgency.
+- **What changed on Nov 21-22 ("training"):** we did not retrain Gemini (the free tier doesn't allow it). We tuned
+  the instructions against our test letters, and added two things in plain code: the AI is now told **today's date**,
+  and our **calendar check** (`checks.calibrated_urgency`) lowers "urgent" to "soon" when every deadline we could
+  verify is more than 14 days away (housing, court and immigration letters excepted). The AI alone got urgency
+  exactly right 78% of the time on this run; with the calendar check, 94%. The earlier version got 76%.
+- **Held-out letters:** letters 20-30 were written after the first 19 and were not used to write the prompt.
+  To be fully open: we did look at the old version's answers on them (all correct except 2 urgency calls) when
+  choosing the 14-day rule, so they are not a perfectly clean test.
+- The missed deadline was on a stained photo where the right edge of the page (with "NO LATER THAN 12/21/2026") is
+  cut off. The AI did not show a made-up date as certain.
+- The jury summons is due in 13 days, so the app calls it urgent; our answer key says "soon". It's a judgment call
+  that we left as a miss.
+- Earlier versions of this evaluation (in git history) checked quotes against the AI's own reading and gave urgency
+  credit for any acceptable level. An independent review said that flattered the numbers, so this version scores
+  against the real letter text and reports exact urgency.
 
 _Generated by `eval/run_eval.py`. Every test letter is fictional and marked SAMPLE. The letters themselves are kept out of the public repo; `cases.json` has the answer key and the public template each letter is modeled on._

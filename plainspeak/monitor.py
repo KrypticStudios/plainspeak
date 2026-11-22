@@ -12,6 +12,8 @@ from collections import Counter
 EVENTS = {
     "letter_ok": "a letter was explained",
     "question_ok": "a question was answered",
+    "reply_ok": "a reply letter was drafted",
+    "basic_check": "a letter was checked without the AI",
     "ai_busy": "Google's AI was overloaded or too slow",
     "ai_limit": "the free AI limit was reached",
     "ai_key": "the API key was rejected",
