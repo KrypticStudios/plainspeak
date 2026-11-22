@@ -300,85 +300,121 @@ def upload_problems(pages) -> list[str]:
 
 def start_screen() -> None:
     rtl = ' dir="rtl"' if LANGUAGES[language] in RTL_LANGUAGES else ""
-    # The tagline is "**Big question?** The rest." -> a big heading (last word in italics) and a line under it.
+    code = LANGUAGES[language]
+    L = labels(code)
+    today = visitor_today()
+    # The tagline is "**Big question?** The rest." -> a big heading and a line under it.
     tag = re.match(r"\*\*(.+?)\*\*\s*(.*)", U["tagline"], re.S)
     big, rest = (tag[1], tag[2]) if tag else ("PlainSpeak", U["tagline"])
-    first, _, last = big.rpartition(" ")
-    big_html = f"{esc(first)} <em>{esc(last)}</em>" if first else esc(big)
-    st.markdown(f'<div class="ps-center"{rtl}><h1 class="ps-bigtitle">{big_html}</h1>'
-                f'<p class="ps-sub">{esc(rest)}</p></div>', unsafe_allow_html=True)
-    st.selectbox("🌐 Explain my letter in / Idioma / 语言 / Ngôn ngữ / اللغة", list(LANGUAGES),
-                 index=list(LANGUAGES).index(language), key="language",
-                 help="The summary and steps will be in this language.")
-    if st.session_state.language != language:   # picked a new language: redraw everything in it
-        st.session_state.lang_pref = st.session_state.language
-        st.rerun()
-    steps = [("camera", "step1t", "step1d"), ("message", "step2t", "step2d"), ("check", "step3t", "step3d")]
-    st.markdown(f'<div class="ps-steps"{rtl}>' + "".join(
-        f'<div class="ps-step"><span class="ps-icotile soft">{icon(ico, 22)}</span><b>{esc(U[title])}</b>{esc(U[desc])}</div>'
-        for ico, title, desc in steps) + "</div>", unsafe_allow_html=True)
+    words = big.split(" ")
+    if len(words) >= 3:   # the second-to-last word in italics ("Got a *confusing* letter?")
+        big_html = " ".join(esc(w) for w in words[:-2]) + f" <em>{esc(words[-2])}</em> {esc(words[-1])}"
+    else:
+        big_html = esc(big)
+    # The preview card shows the real eviction example, counted from today.
+    sample = demo.demo_analysis(LINK_EXAMPLES["eviction"], language) or demo.demo_analysis(LINK_EXAMPLES["eviction"], "English")
+    preview = ""
+    nxt = next_deadline(sample, today=today) if sample else None
+    if nxt and nxt[0] > 1:
+        days, d = nxt
+        when = format_date(date.fromisoformat(d.date), "medium", locale=code.replace("-", "_"))
+        preview = (f'<div class="ps-preview"><p class="ps-pv-label">{esc(L["urgent"])} · {esc(L["next_deadline"])} '
+                   f'{esc(when)}</p><div class="ps-pv-count">{esc(L["days_left"].format(n=days))}</div>'
+                   f'<p class="ps-pv-text">{esc(sample.actions[0].step if sample.actions else d.what)}</p></div>')
+    hero_l, hero_r = st.columns([1.05, 1], gap="large")
+    hero_l.markdown(
+        f'<div class="ps-home-l"{rtl}><h1 class="ps-home-title">{big_html}</h1><p class="ps-home-sub">{esc(rest)}</p>'
+        f'<h2 class="ps-home-h2">{esc(U["glance_a"])} <em>{esc(U["glance_b"])}</em></h2>'
+        f'<p class="ps-home-body">{esc(U["glance_body"])}</p></div>', unsafe_allow_html=True)
+    hero_r.markdown(
+        f'<div{rtl}>{preview}<div class="ps-feat white"><b>{esc(U["card_quote_b"])}</b> {esc(U["card_quote"])}</div>'
+        f'<div class="ps-feat-row"><div class="ps-feat white"><b class="t">{esc(U["card_person_t"])}</b>'
+        f'{esc(U["card_person"])}</div><div class="ps-feat dark"><b class="t">{esc(U["card_call_t"])}</b>'
+        f'{esc(U["card_call"])}</div></div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="ps-stats"{rtl}><div><b>{len(LANGUAGES)}</b><span>{esc(U["stat_langs"])}</span></div>'
+                f'<div><b>3</b><span>{esc(U["stat_steps"])}</span></div>'
+                f'<div><b>0</b><span>{esc(U["stat_dates"])}</span></div></div>'
+                f'<h2 class="ps-home-h2 sec"{rtl}>{esc(U["upload_title"])}</h2>'
+                f'<div class="ps-kinds"{rtl}>' + "".join(f'<div><span class="dot"></span>{esc(U[k])}</div>'
+                                                      for k in ("kind_rent", "kind_benefits", "kind_medical")) +
+                "</div>", unsafe_allow_html=True)
 
-    if not has_api_key():
-        st.info(U["demo_mode"], icon="ℹ️")
-    st.caption(U["privacy_line"])   # visible BEFORE anyone uploads, not hidden in a menu
+    with st.container(key="ps-upload"):
+        st.selectbox("🌐 Explain my letter in / Idioma / 语言 / Ngôn ngữ / اللغة", list(LANGUAGES),
+                     index=list(LANGUAGES).index(language), key="language",
+                     help="The summary and steps will be in this language.")
+        if st.session_state.language != language:   # picked a new language: redraw everything in it
+            st.session_state.lang_pref = st.session_state.language
+            st.rerun()
+        if not has_api_key():
+            st.info(U["demo_mode"], icon="ℹ️")
+        st.caption(U["privacy_line"])   # visible BEFORE anyone uploads, not hidden in a menu
 
-    # Privacy choice: plain-Python check only, nothing goes to the AI (also works when there is no AI key).
-    no_ai = st.toggle("🔐 " + U["no_ai_toggle"], key="no_ai", help=U["no_ai_help"])
-    can_go = has_api_key() or no_ai
-    tab_photo, tab_text = st.tabs([U["tab_photo"], U["tab_paste"]])
+        # Privacy choice: plain-Python check only, nothing goes to the AI (also works when there is no AI key).
+        no_ai = st.toggle("🔐 " + U["no_ai_toggle"], key="no_ai", help=U["no_ai_help"])
+        can_go = has_api_key() or no_ai
+        tab_photo, tab_text = st.tabs([U["tab_photo"], U["tab_paste"]])
 
-    with tab_photo:
-        uploads = st.file_uploader(U["upload_label"], accept_multiple_files=True, key="uploads",
-                                   type=["png", "jpg", "jpeg", "webp", "pdf"])
-        st.caption(U["photo_tips"])
-        use_camera = st.toggle(U["use_camera"], key="use_camera")
-        snap = st.camera_input(U["camera_label"], key="camera") if use_camera else None
-        pages = ([snap] if snap else []) + list(uploads or [])
-        if pages:
-            # Check every file FIRST. Only real, readable pictures get a preview (a broken file must
-            # show a friendly message, not crash the page).
-            problems = upload_problems(pages)
-            checked = st.session_state["upload_checks"]
-            images = [p for p in pages if p.type.startswith("image/") and not checked.get(p.file_id)]
-            if images:
-                st.image(images, caption=[f"{U['page']} {i}" for i in range(1, len(images) + 1)], width=140)
-            for problem in problems:
-                st.error(problem, icon="🚫")
-            label = f"{U['explain']} ({len(pages)} {U['page'] if len(pages) == 1 else U['pages']})"
-            if st.button(label, type="primary", key="go-photo", disabled=not can_go or bool(problems),
+        with tab_photo:
+            uploads = st.file_uploader(U["upload_label"], accept_multiple_files=True, key="uploads",
+                                       type=["png", "jpg", "jpeg", "webp", "pdf"])
+            st.caption(U["photo_tips"])
+            use_camera = st.toggle(U["use_camera"], key="use_camera")
+            snap = st.camera_input(U["camera_label"], key="camera") if use_camera else None
+            pages = ([snap] if snap else []) + list(uploads or [])
+            if pages:
+                # Check every file FIRST. Only real, readable pictures get a preview (a broken file must
+                # show a friendly message, not crash the page).
+                problems = upload_problems(pages)
+                checked = st.session_state["upload_checks"]
+                images = [p for p in pages if p.type.startswith("image/") and not checked.get(p.file_id)]
+                if images:
+                    st.image(images, caption=[f"{U['page']} {i}" for i in range(1, len(images) + 1)], width=140)
+                for problem in problems:
+                    st.error(problem, icon="🚫")
+                label = f"{U['explain']} ({len(pages)} {U['page'] if len(pages) == 1 else U['pages']})"
+                if st.button(label, type="primary", key="go-photo", disabled=not can_go or bool(problems),
+                             use_container_width=True):
+                    # Check again here on the server: a disabled button in the browser is not a real lock.
+                    if not upload_problems(pages):
+                        st.session_state.request = {"files": [prepare_image(p.getvalue(), p.type) for p in pages],
+                                                    "source": "photo", "basic": no_ai}
+                        st.rerun()
+
+        with tab_text:
+            # Streamlit forgets a text box's words while another screen is shown; put them back.
+            if "pasted" not in st.session_state and st.session_state.get("pasted_keep"):
+                st.session_state.pasted = st.session_state.pasted_keep
+            pasted = st.text_area(U["paste_label"], height=180, max_chars=MAX_TEXT_CHARS, key="pasted",
+                                  placeholder=U["paste_placeholder"])
+            st.caption(U["ids_note"])
+            if st.button(U["explain"], type="primary", key="go-text", disabled=not can_go,
                          use_container_width=True):
-                # Check again here on the server: a disabled button in the browser is not a real lock.
-                if not upload_problems(pages):
-                    st.session_state.request = {"files": [prepare_image(p.getvalue(), p.type) for p in pages],
-                                                "source": "photo", "basic": no_ai}
+                if pasted.strip():
+                    clean, hidden = redact(pasted[:MAX_TEXT_CHARS])
+                    if hidden:
+                        monitor.record("ids_hidden")
+                    st.session_state.request = {"text": clean, "source": "text", "basic": no_ai,
+                                                "notice": U["ids_hidden"].format(n=hidden) if hidden else None}
                     st.rerun()
-
-    with tab_text:
-        # Streamlit forgets a text box's words while another screen is shown; put them back.
-        if "pasted" not in st.session_state and st.session_state.get("pasted_keep"):
-            st.session_state.pasted = st.session_state.pasted_keep
-        pasted = st.text_area(U["paste_label"], height=180, max_chars=MAX_TEXT_CHARS, key="pasted",
-                              placeholder=U["paste_placeholder"])
-        st.caption(U["ids_note"])
-        if st.button(U["explain"], type="primary", key="go-text", disabled=not can_go,
-                     use_container_width=True):
-            if pasted.strip():
-                clean, hidden = redact(pasted[:MAX_TEXT_CHARS])
-                if hidden:
-                    monitor.record("ids_hidden")
-                st.session_state.request = {"text": clean, "source": "text", "basic": no_ai,
-                                            "notice": U["ids_hidden"].format(n=hidden) if hidden else None}
-                st.rerun()
-            else:
-                st.warning(U["empty_box"])
+                else:
+                    st.warning(U["empty_box"])
 
     # One-click examples
-    st.markdown(f"#### {U['examples_title']}")
-    st.caption(U["examples_caption"])
-    fake_mistake = st.toggle(U["mistake_toggle"], key="fake_mistake", help=U["mistake_help"])
-    for col, (short, name) in zip(st.columns(len(LINK_EXAMPLES)), LINK_EXAMPLES.items()):
-        emoji = {"eviction": "🏠", "benefits": "🍎", "hospital": "🏥"}[short]
-        if col.button(f"{emoji} {U['ex_' + short]}", key=f"ex-{name}", use_container_width=True):
+    title = U["examples_title"]
+    q, mark, rest_ex = title.partition("?") if "?" in title else title.partition("？")
+    ex_html = f"{esc(q + mark)} <em>{esc(rest_ex.strip())}</em>" if mark else esc(title)
+    st.markdown(f'<div class="ps-center ps-ex-head"{rtl}><h2 class="ps-home-h2 big">{ex_html}</h2>'
+                f'<p class="ps-sub">{bold(U["examples_caption"])}</p></div>', unsafe_allow_html=True)
+    with st.container(horizontal=True, horizontal_alignment="center"):
+        fake_mistake = st.toggle("🧪 " + plain(U["mistake_toggle"]), key="fake_mistake", help=U["mistake_help"])
+    for n, (col, (short, name)) in enumerate(zip(st.columns(len(LINK_EXAMPLES), gap="large"), LINK_EXAMPLES.items())):
+        col.markdown(f'<div class="ps-paper p{n}" aria-hidden="true"><i class="t"></i><i></i><i class="hl"></i>'
+                     f'<i></i><i class="s"></i></div>', unsafe_allow_html=True)
+        ico = {"eviction": ":material/home:", "benefits": ":material/nutrition:", "hospital": ":material/note_add:"}[short]
+        with col, st.container(horizontal_alignment="center"):
+            clicked = st.button(U["ex_" + short], key=f"ex-{name}", icon=ico)
+        if clicked:
             saved = demo.demo_analysis(name, language)
             if saved is None and has_api_key():
                 st.session_state.request = {"text": demo.sample_text(name), "source": "example"}   # ask the AI live
@@ -863,5 +899,4 @@ elif "basic" in st.session_state:
     with st.container(key="ps-narrow"):
         show_basic_result(st.session_state.basic)
 else:
-    with st.container(key="ps-narrow"):
-        start_screen()
+    start_screen()

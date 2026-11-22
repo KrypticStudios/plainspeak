@@ -338,3 +338,94 @@ _DESIGN_KEYS = ["call", "reading_level", "rl_letter", "rl_summary", "grade", "no
                 "add_letter", "days_word"]
 for _code, _words in _DESIGN.items():
     NEW[_code].update(zip(_DESIGN_KEYS, _words))
+
+# Labels for the new home page (Nov 22), in every language.
+_HOME_KEYS = ["glance_a", "glance_b", "glance_body", "stat_langs", "stat_steps", "stat_dates", "card_quote_b",
+              "card_quote", "card_person_t", "card_person", "card_call_t", "card_call", "upload_title",
+              "kind_rent", "kind_benefits", "kind_medical"]
+_HOME = {
+    "en": ["Know how urgent it is,", "in one look.",
+           "At a glance: how urgent it is, a countdown to the next deadline, and the first thing to do. "
+           "Then details, in short sentences you can read aloud.",
+           "languages", "simple steps", "guessed dates", "Every date is quoted from your letter.",
+           "If we cannot find it, we do not show it.", "Talk to a real person",
+           "Serious letters deserve one. Call 211 or visit LawHelp.org.", "Tap to call",
+           "Phone numbers only appear if they are in your letter.", "What you can upload",
+           "Rent and eviction letters", "Benefits letters", "Medical bills"],
+    "es": ["Sepa qué tan urgente es,", "de un vistazo.",
+           "De un vistazo: qué tan urgente es, cuántos días quedan para la próxima fecha y lo primero que debe hacer. "
+           "Después, los detalles en frases cortas que puede escuchar.",
+           "idiomas", "pasos sencillos", "fechas inventadas", "Cada fecha se cita de su carta.",
+           "Si no la encontramos, no la mostramos.", "Hable con una persona",
+           "Las cartas serias lo merecen. Llame al 211 o visite LawHelp.org.", "Toque para llamar",
+           "Solo aparecen los teléfonos que están en su carta.", "Qué puede subir",
+           "Cartas de renta y desalojo", "Cartas de beneficios", "Facturas médicas"],
+    "zh-CN": ["一眼看出有多紧急，", "一目了然。",
+              "一眼就能看到：有多紧急、离下一个截止日期还有几天、第一步该做什么。然后是可以朗读的简短说明。",
+              "种语言", "个简单步骤", "个猜测的日期", "每个日期都引用自您的信。", "找不到的日期，我们不会显示。",
+              "找真人谈谈", "重要的信值得这样做。拨打 211 或访问 LawHelp.org。", "点击拨打",
+              "只显示您信中出现的电话号码。", "可以上传什么", "房租和驱逐信", "福利信件", "医疗账单"],
+    "vi": ["Biết mức độ khẩn cấp,", "chỉ trong một cái nhìn.",
+           "Nhìn một lần là biết: khẩn cấp đến đâu, còn bao nhiêu ngày đến hạn chót, và việc cần làm đầu tiên. "
+           "Sau đó là chi tiết, bằng câu ngắn có thể đọc to.",
+           "ngôn ngữ", "bước đơn giản", "ngày đoán bừa", "Mỗi ngày đều được trích từ thư của bạn.",
+           "Nếu không tìm thấy, chúng tôi không hiển thị.", "Nói chuyện với người thật",
+           "Thư quan trọng xứng đáng như vậy. Gọi 211 hoặc vào LawHelp.org.", "Chạm để gọi",
+           "Chỉ hiện số điện thoại có trong thư của bạn.", "Bạn có thể tải lên gì",
+           "Thư tiền nhà và đuổi nhà", "Thư trợ cấp", "Hóa đơn y tế"],
+    "ar": ["اعرف مدى الاستعجال،", "بنظرة واحدة.",
+           "بنظرة واحدة: مدى الاستعجال، والأيام الباقية حتى الموعد التالي، وأول خطوة. ثم التفاصيل بجمل قصيرة يمكنك سماعها.",
+           "لغة", "خطوات بسيطة", "تواريخ مُخمَّنة", "كل تاريخ مقتبس من رسالتك.", "إذا لم نجده، لا نعرضه.",
+           "تحدث مع شخص حقيقي", "الرسائل المهمة تستحق ذلك. اتصل بـ 211 أو زر LawHelp.org.", "اضغط للاتصال",
+           "تظهر أرقام الهاتف فقط إذا كانت في رسالتك.", "ما يمكنك رفعه",
+           "رسائل الإيجار والإخلاء", "رسائل المساعدات", "فواتير طبية"],
+    "hi": ["जानें कितना ज़रूरी है,", "एक नज़र में।",
+           "एक नज़र में: कितना ज़रूरी है, अगली आखिरी तारीख तक कितने दिन, और पहला काम। "
+           "फिर छोटे वाक्यों में पूरी बात, जिसे आप सुन भी सकते हैं।",
+           "भाषाएँ", "आसान कदम", "अनुमानित तारीखें", "हर तारीख आपके पत्र से ली गई है।",
+           "अगर हमें नहीं मिलती, तो हम नहीं दिखाते।", "किसी असली व्यक्ति से बात करें",
+           "गंभीर पत्रों के लिए यह ज़रूरी है। 211 पर कॉल करें या LawHelp.org देखें।", "कॉल करने के लिए टैप करें",
+           "सिर्फ़ वही फ़ोन नंबर दिखते हैं जो आपके पत्र में हैं।", "आप क्या अपलोड कर सकते हैं",
+           "किराया और बेदखली के पत्र", "सरकारी मदद के पत्र", "अस्पताल के बिल"],
+    "tl": ["Alamin kung gaano kaapurahan,", "sa isang tingin.",
+           "Sa isang tingin: gaano kaapurahan, ilang araw pa bago ang susunod na deadline, at ang unang gagawin. "
+           "Pagkatapos, ang detalye sa maiikling pangungusap na mababasa nang malakas.",
+           "wika", "simpleng hakbang", "hinulaang petsa", "Bawat petsa ay sinipi mula sa iyong sulat.",
+           "Kung hindi namin ito makita, hindi namin ito ipinapakita.", "Makipag-usap sa totoong tao",
+           "Nararapat ito sa mabibigat na sulat. Tumawag sa 211 o bisitahin ang LawHelp.org.", "Pindutin para tumawag",
+           "Lumalabas lang ang numero kung nasa sulat mo ito.", "Ano ang maaari mong i-upload",
+           "Sulat tungkol sa upa at pagpapaalis", "Sulat tungkol sa benepisyo", "Bayarin sa ospital"],
+    "fr": ["Voyez l'urgence,", "d'un seul coup d'œil.",
+           "D'un coup d'œil : l'urgence, le nombre de jours avant la prochaine échéance et la première chose à faire. "
+           "Puis les détails, en phrases courtes à écouter.",
+           "langues", "étapes simples", "dates devinées", "Chaque date est citée de votre lettre.",
+           "Si nous ne la trouvons pas, nous ne l'affichons pas.", "Parler à une vraie personne",
+           "Les lettres sérieuses le méritent. Appelez le 211 ou allez sur LawHelp.org.", "Toucher pour appeler",
+           "Seuls les numéros présents dans votre lettre s'affichent.", "Ce que vous pouvez envoyer",
+           "Lettres de loyer et d'expulsion", "Lettres d'aides sociales", "Factures médicales"],
+    "ko": ["얼마나 급한지", "한눈에 알아보세요.",
+           "한눈에: 얼마나 급한지, 다음 마감일까지 남은 날, 가장 먼저 할 일. 그다음 소리 내어 읽을 수 있는 짧은 문장으로 자세한 내용.",
+           "개 언어", "개의 쉬운 단계", "개의 추측한 날짜", "모든 날짜는 편지에서 그대로 인용합니다.",
+           "찾을 수 없으면 보여 주지 않습니다.", "실제 사람과 이야기하기",
+           "중요한 편지라면 꼭 필요합니다. 211에 전화하거나 LawHelp.org를 방문하세요.", "눌러서 전화하기",
+           "편지에 있는 전화번호만 표시됩니다.", "올릴 수 있는 것", "집세·퇴거 편지", "복지 혜택 편지", "병원비 청구서"],
+    "ru": ["Сразу видно, насколько срочно,", "с одного взгляда.",
+           "С одного взгляда: насколько срочно, сколько дней до срока и что сделать первым. "
+           "Потом подробности короткими фразами, которые можно прослушать.",
+           "языков", "простых шага", "придуманных дат", "Каждая дата взята из вашего письма.",
+           "Если мы её не находим, мы её не показываем.", "Поговорите с живым человеком",
+           "Серьёзные письма этого стоят. Позвоните 211 или зайдите на LawHelp.org.", "Нажмите, чтобы позвонить",
+           "Показываем только номера, которые есть в письме.", "Что можно загрузить",
+           "Письма об аренде и выселении", "Письма о пособиях", "Медицинские счета"],
+    "pt": ["Saiba a urgência,", "num só olhar.",
+           "Num só olhar: a urgência, quantos dias faltam para o próximo prazo e a primeira coisa a fazer. "
+           "Depois, os detalhes em frases curtas que você pode ouvir.",
+           "idiomas", "passos simples", "datas inventadas", "Cada data é citada da sua carta.",
+           "Se não a encontramos, não a mostramos.", "Fale com uma pessoa de verdade",
+           "Cartas sérias merecem isso. Ligue para 211 ou visite LawHelp.org.", "Toque para ligar",
+           "Só aparecem telefones que estão na sua carta.", "O que você pode enviar",
+           "Cartas de aluguel e despejo", "Cartas de benefícios", "Contas médicas"],
+}
+for _code, _words in _HOME.items():
+    assert len(_words) == len(_HOME_KEYS), _code
+    NEW[_code].update(zip(_HOME_KEYS, _words))
