@@ -4,6 +4,8 @@
 
 Built at **EvoHacks 2.0** (theme: *Projects for Social Good*).
 
+**What's different from pasting a letter into a chatbot:** PlainSpeak *proves* every deadline it shows (plain Python checks that the AI's quote is really in the letter, with the date in that same sentence), checks urgency against the calendar, has a private mode that never sends the letter to the AI, and helps you act: a reply letter drafted only from the letter's facts, a checklist of papers, and a calendar reminder, in 11 languages.
+
 ![PlainSpeak](docs/cover.jpg)
 
 **Try it: https://plainspeak.streamlit.app** (no sign-up). Please use the examples or made-up details. See [Privacy](#privacy-and-security).
