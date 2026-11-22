@@ -323,6 +323,12 @@ h2.ps-home-h2.big {font-size: 3.7rem !important; text-align: center; margin-top:
   .ps-grade {margin-left: 0;}
   [data-testid="stForm"] {border-radius: 24px;}
   h1.ps-home-title {font-size: 3.2rem !important;}
+  .block-container, [data-testid="stMainBlockContainer"] {padding-top: 3rem;}
+  .st-key-ps-top {gap: .35rem .9rem !important; margin-bottom: .6rem;}
+  .st-key-ps-top [data-testid="stSpace"] {display: none;}
+  .st-key-ps-top .ps-brand {font-size: 1.5rem !important; width: 100%;}
+  .st-key-ps-top button {min-height: 2.2rem; padding: .3rem .9rem; font-size: .85rem;}
+  .st-key-ps-top [data-testid="stCheckbox"] p {font-size: .82rem;}
   h2.ps-home-h2 {font-size: 1.9rem !important;}
   h2.ps-home-h2.big {font-size: 2.3rem !important;}
   .ps-pv-count {font-size: 3.2rem;}
