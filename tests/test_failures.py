@@ -91,5 +91,5 @@ def test_read_aloud_failure_is_friendly(monkeypatch):
     at = AppTest.from_file(APP, default_timeout=60)
     at.query_params["example"] = "eviction"
     at.run()
-    [b for b in at.button if "🔊" in b.label][0].click().run()
+    at.button(key="tts").click().run()
     assert not at.exception and ui("en")["tts_failed"] in shown(at)

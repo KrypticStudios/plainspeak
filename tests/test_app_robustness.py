@@ -133,9 +133,11 @@ def test_odd_links_do_not_break_the_page(query):
 def test_saved_letter_round_trip_and_isolation():
     a = run_app(example="eviction")
     a.button(key="save").click().run()
-    assert any(b.key and b.key.startswith("open-") for b in a.sidebar.button)
+    a.button(key="nav-letters").click().run()   # the My letters page
+    assert any(b.key and b.key.startswith("open-") for b in a.button)
     b = run_app()   # a second visitor: separate session, sees none of a's letters
-    assert not [x for x in b.sidebar.button if x.key and x.key.startswith("open-")] or \
+    b.button(key="nav-letters").click().run()
+    assert not [x for x in b.button if x.key and x.key.startswith("open-")] or \
         b.session_state["lang_pref"]   # local mode (PLAINSPEAK_LOCAL=1) shares one file by design
 
 

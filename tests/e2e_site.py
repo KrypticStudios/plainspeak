@@ -89,10 +89,14 @@ with sync_playwright() as p:
     # 4. Save a letter, then a second visitor must not see it
     page.get_by_role("button", name=re.compile("Save to My letters")).click()
     page.wait_for_timeout(2000)
-    saved_here = page.locator('[data-testid="stSidebar"]').inner_text()
+    page.get_by_role("button", name=re.compile("My letters")).click()
+    page.wait_for_timeout(2500)
+    saved_here = page.inner_text("main")
     other = browser.new_context(viewport={"width": 1280, "height": 900})
     page2 = open_page(browser, "", context=other)
-    saved_there = page2.locator('[data-testid="stSidebar"]').inner_text()
+    page2.get_by_role("button", name=re.compile("My letters")).click()
+    page2.wait_for_timeout(2500)
+    saved_there = page2.inner_text("main")
     check("saved letter shows for its owner", "Eviction" in saved_here)
     check("a different visitor can't see it", "Eviction" not in saved_there)
     page2.close()
@@ -101,7 +105,7 @@ with sync_playwright() as p:
     # 5. Read-aloud in four languages
     for lang in ["en", "es", "ar", "zh-CN"]:
         pg = open_page(browser, f"?example=eviction&lang={lang}")
-        pg.locator('button:has-text("🔊")').first.click()
+        pg.locator('.st-key-tts button').first.click()
         try:
             pg.wait_for_selector("audio", timeout=30_000)
             check(f"read-aloud ({lang})", True)

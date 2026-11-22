@@ -308,3 +308,33 @@ NEW = {
         "no_ai_help": "Um programa simples encontra datas, valores e telefones na sua carta. Nada é enviado para a IA, mas não há explicação.",
     },
 }
+
+# Labels for the new page design (Nov 22), in every language.
+_DESIGN = {
+    "en": ["Call", "Reading level", "Letter", "Summary", "grade {n}", "No saved letters yet",
+           "When you save a letter, it will show up here.", "Add a letter", "days"],
+    "es": ["Llamar al", "Nivel de lectura", "Carta", "Resumen", "grado {n}", "Todavía no hay cartas guardadas",
+           "Cuando guarde una carta, aparecerá aquí.", "Agregar una carta", "días"],
+    "zh-CN": ["拨打", "阅读难度", "原信", "摘要", "{n} 年级", "还没有保存的信",
+              "您保存的信会显示在这里。", "添加一封信", "天"],
+    "vi": ["Gọi", "Mức độ dễ đọc", "Lá thư", "Tóm tắt", "lớp {n}", "Chưa có thư nào được lưu",
+           "Khi bạn lưu một lá thư, nó sẽ hiện ở đây.", "Thêm một lá thư", "ngày"],
+    "ar": ["اتصل على", "مستوى القراءة", "الرسالة", "الملخص", "الصف {n}", "لا توجد رسائل محفوظة بعد",
+           "عندما تحفظ رسالة، ستظهر هنا.", "أضف رسالة", "يوم"],
+    "hi": ["कॉल करें", "पढ़ने का स्तर", "पत्र", "सारांश", "कक्षा {n}", "अभी कोई सहेजा हुआ पत्र नहीं",
+           "जब आप कोई पत्र सहेजेंगे, वह यहाँ दिखेगा।", "पत्र जोड़ें", "दिन"],
+    "tl": ["Tumawag sa", "Antas ng pagbasa", "Sulat", "Buod", "baitang {n}", "Wala pang naka-save na sulat",
+           "Kapag nag-save ka ng sulat, lalabas ito dito.", "Magdagdag ng sulat", "araw"],
+    "fr": ["Appeler le", "Niveau de lecture", "Lettre", "Résumé", "niveau {n}", "Aucune lettre enregistrée",
+           "Quand vous enregistrez une lettre, elle apparaît ici.", "Ajouter une lettre", "jours"],
+    "ko": ["전화하기", "읽기 수준", "편지", "요약", "{n}학년", "아직 저장한 편지가 없습니다",
+           "편지를 저장하면 여기에 나타납니다.", "편지 추가", "일"],
+    "ru": ["Позвонить", "Уровень чтения", "Письмо", "Кратко", "{n} класс", "Сохранённых писем пока нет",
+           "Когда вы сохраните письмо, оно появится здесь.", "Добавить письмо", "дн."],
+    "pt": ["Ligar para", "Nível de leitura", "Carta", "Resumo", "{n}º ano", "Nenhuma carta salva ainda",
+           "Quando você salvar uma carta, ela aparecerá aqui.", "Adicionar uma carta", "dias"],
+}
+_DESIGN_KEYS = ["call", "reading_level", "rl_letter", "rl_summary", "grade", "no_letters", "no_letters_sub",
+                "add_letter", "days_word"]
+for _code, _words in _DESIGN.items():
+    NEW[_code].update(zip(_DESIGN_KEYS, _words))

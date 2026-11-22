@@ -1,10 +1,15 @@
 [theme]
 base = "light"
-primaryColor = "#1d4ed8"
-backgroundColor = "#ffffff"
-secondaryBackgroundColor = "#f1f5f9"
-textColor = "#0f172a"
-font = "sans serif"
+primaryColor = "#B84E25"
+backgroundColor = "#F1ECE2"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#1F3B2D"
+borderColor = "#D6CCB8"
+linkColor = "#9E3F1A"
+font = "DM Sans:https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..700&display=swap"
+headingFont = "Fraunces:https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&display=swap"
+baseRadius = "large"
+buttonRadius = "full"
 
 [server]
 maxUploadSize = 10                 # MB per file
