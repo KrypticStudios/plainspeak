@@ -580,6 +580,11 @@ def show_basic_result(b: dict) -> None:
     today = visitor_today()
     r = basic_reader.read(b["text"], today=today)
     shown = 30   # at most this many of each, so a strange file can't make a page with thousands of cards
+    if not b.get("scrolled"):   # a new check: start at the top of the page, like the full answer does
+        b["scrolled"] = True
+        st.iframe("<script>for (const el of [window.parent, ...window.parent.document.querySelectorAll("
+                  "'[data-testid=stMain], section.main, .main')]) { try { el.scrollTo({top: 0}); } catch (e) {} }"
+                  "</script>", height=1, tab_index=-1, alt="(scrolls the page to the top)")
 
     def card(body: str, extra_class: str = "") -> None:
         st.markdown(f'<div class="ps-card {extra_class}" dir="{direction}">{body}</div>', unsafe_allow_html=True)
