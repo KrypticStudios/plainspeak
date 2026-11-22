@@ -51,6 +51,7 @@ CSS = """
     {overflow-wrap: anywhere;}
 .ps-i {display: inline-block; vertical-align: -0.2em; flex: none;}
 .ps-muted {color: var(--muted);}
+[data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] p, .stCaption {color: var(--muted) !important;}
 
 /* ---- top bar ---- */
 .ps-brand {font-family: var(--serif) !important; font-weight: 700 !important; font-size: 1.9rem !important; color: var(--green) !important; margin: 0 !important;

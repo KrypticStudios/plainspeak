@@ -59,7 +59,7 @@ with sync_playwright() as p:
                 ok_start = no_crash(page) and fits_screen(page)
                 page.close()
                 page = open_page(browser, f"?example=eviction&lang={lang}", width=width, height=844)
-                ok_result = no_crash(page) and fits_screen(page) and "⏰" in page.inner_text("main")
+                ok_result = no_crash(page) and fits_screen(page) and page.locator(".ps-count").count() == 1
                 check(f"language {lang} @ {width}px: start + results", ok_start and ok_result)
                 page.close()
             except Exception as e:
